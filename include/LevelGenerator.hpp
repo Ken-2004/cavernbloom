@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Platform.hpp"
+#include "Bounds2D.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -10,10 +11,9 @@ namespace cavernbloom {
 namespace generation {
 
 inline constexpr std::uint32_t developmentSeed = 20260909U;
-inline constexpr std::size_t routePlatformCount = 10;
+inline constexpr std::size_t routePlatformCount = 28;
 inline constexpr std::size_t maxCandidateAttempts = 32;
 inline constexpr float leftBound = -600.0F;
-inline constexpr float rightBound = 600.0F;
 inline constexpr float minimumTop = -260.0F;
 inline constexpr float maximumTop = -100.0F;
 inline constexpr float startWidth = 144.0F;
@@ -33,6 +33,7 @@ struct GeneratedLevel {
     // Every platform is on the primary route, in progression order.
     std::vector<Platform> platforms;
     glm::vec2 spawnPosition;
+    Bounds2D bounds;
     std::size_t goalPlatformIndex = 0;
     std::uint32_t seed = 0;
     std::size_t candidateAttempts = 0;

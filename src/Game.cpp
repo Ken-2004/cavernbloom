@@ -49,11 +49,14 @@ Game::Game()
     }
     glfwSwapInterval(1);
     renderer_ = std::make_unique<Renderer>(CAVERNBLOOM_SHADER_DIR);
+    camera_.setWorldBounds(level_.bounds);
+    camera_.recenter(player_.position());
 
     glfwSetWindowUserPointer(window_.get(), this);
     glfwSetFramebufferSizeCallback(window_.get(), [](GLFWwindow* window, int width, int height) {
         auto* game = static_cast<Game*>(glfwGetWindowUserPointer(window));
         game->renderer_->resize(width, height);
+        game->camera_.setViewportSize(width, height);
     });
     glfwSetKeyCallback(window_.get(), [](GLFWwindow* window, int key, int, int action, int) {
         auto* game = static_cast<Game*>(glfwGetWindowUserPointer(window));
@@ -71,6 +74,7 @@ Game::Game()
     int height = 0;
     glfwGetFramebufferSize(window_.get(), &width, &height);
     renderer_->resize(width, height);
+    camera_.setViewportSize(width, height);
     std::cout << "CavernBloom | OpenGL " << glGetString(GL_VERSION)
               << " | Level seed " << level_.seed
               << " | A/D or arrows to move | Space to jump | Escape to close\n";
@@ -103,6 +107,7 @@ void Game::run()
             update(static_cast<float>(simulation::fixedStepSeconds));
             accumulator -= simulation::fixedStepSeconds;
         }
+        camera_.follow(player_.position());
         render();
         glfwSwapBuffers(window_.get());
         if (glfwGetWindowAttrib(window_.get(), GLFW_ICONIFIED) == GLFW_TRUE) {
@@ -131,12 +136,13 @@ void Game::update(float deltaSeconds)
                    level_.platforms);
     if (player_.position().y < simulation::fallResetY) {
         player_.resetToSpawn();
+        camera_.recenter(player_.position());
     }
 }
 
 void Game::render()
 {
-    renderer_->beginFrame();
+    renderer_->beginFrame(camera_.viewProjection());
     for (std::size_t index = 0; index < level_.platforms.size(); ++index) {
         const Platform& platform = level_.platforms[index];
         const glm::vec4 color = index == level_.goalPlatformIndex

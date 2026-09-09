@@ -49,10 +49,10 @@ glad_add_library(cavernbloom_glad STATIC REPRODUCIBLE API gl:core=3.3 EXTENSIONS
 
 add_executable(CavernBloom
     src/main.cpp src/Game.cpp src/Renderer.cpp src/Shader.cpp src/Player.cpp src/Collision.cpp
-    src/JumpReachability.cpp src/LevelGenerator.cpp
+    src/JumpReachability.cpp src/LevelGenerator.cpp src/Camera2D.cpp
     include/Game.hpp include/Renderer.hpp include/Shader.hpp include/Player.hpp
     include/SimulationConfig.hpp include/Platform.hpp include/Collision.hpp
-    include/JumpReachability.hpp include/LevelGenerator.hpp
+    include/JumpReachability.hpp include/LevelGenerator.hpp include/Camera2D.hpp include/Bounds2D.hpp
 )
 target_compile_features(CavernBloom PRIVATE cxx_std_20)
 set_target_properties(CavernBloom PROPERTIES CXX_EXTENSIONS OFF)
@@ -81,7 +81,9 @@ if(BUILD_TESTING)
     add_executable(CavernBloomJumpReachabilityTests tests/JumpReachabilityTests.cpp src/JumpReachability.cpp)
     add_executable(CavernBloomLevelGeneratorTests tests/LevelGeneratorTests.cpp
         src/LevelGenerator.cpp src/JumpReachability.cpp src/Player.cpp src/Collision.cpp)
-    foreach(suite Player Collision JumpReachability LevelGenerator)
+    add_executable(CavernBloomCameraTests tests/CameraTests.cpp src/Camera2D.cpp
+        src/Player.cpp src/Collision.cpp)
+    foreach(suite Player Collision JumpReachability LevelGenerator Camera)
         set(test_target "CavernBloom${suite}Tests")
         target_compile_features(${test_target} PRIVATE cxx_std_20)
         set_target_properties(${test_target} PROPERTIES CXX_EXTENSIONS OFF)
@@ -97,4 +99,5 @@ if(BUILD_TESTING)
     add_test(NAME StaticPlatformCollision COMMAND CavernBloomCollisionTests)
     add_test(NAME JumpReachability COMMAND CavernBloomJumpReachabilityTests)
     add_test(NAME SeededLevelGeneration COMMAND CavernBloomLevelGeneratorTests)
+    add_test(NAME Camera2D COMMAND CavernBloomCameraTests)
 endif()

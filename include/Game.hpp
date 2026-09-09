@@ -2,6 +2,7 @@
 
 #include "Player.hpp"
 #include "LevelGenerator.hpp"
+#include "Camera2D.hpp"
 
 #include <memory>
 
@@ -41,6 +42,7 @@ private:
     std::unique_ptr<Renderer> renderer_;
     GeneratedLevel level_ = generateLevel(generation::developmentSeed);
     Player player_{level_.spawnPosition};
+    Camera2D camera_;
     int horizontalDirection_ = 0;
     bool jumpRequested_ = false;
 };

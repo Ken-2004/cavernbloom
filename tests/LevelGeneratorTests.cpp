@@ -4,6 +4,7 @@
 #include "Collision.hpp"
 
 #include <cmath>
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
@@ -29,7 +30,8 @@ float top(const Platform& platform)
 bool sameLayout(const GeneratedLevel& first, const GeneratedLevel& second)
 {
     if (first.platforms.size() != second.platforms.size() || first.spawnPosition != second.spawnPosition
-        || first.goalPlatformIndex != second.goalPlatformIndex) {
+        || first.goalPlatformIndex != second.goalPlatformIndex
+        || first.bounds.minimum != second.bounds.minimum || first.bounds.maximum != second.bounds.maximum) {
         return false;
     }
     for (std::size_t index = 0; index < first.platforms.size(); ++index) {
@@ -50,6 +52,11 @@ void validate(const GeneratedLevel& level)
             "Candidate budget exceeded.");
     const auto& start = level.platforms.front();
     require(start.size.x == generation::startWidth, "Wide start missing.");
+    const float worldWidth = level.bounds.maximum.x - level.bounds.minimum.x;
+    require(worldWidth >= 2500.0F && worldWidth <= 4000.0F, "World is not substantially larger than one screen.");
+    require(level.platforms.back().position.x - level.spawnPosition.x > 1280.0F,
+            "Goal is not beyond the initial view.");
+    Bounds2D expectedBounds{start.position - start.size * 0.5F, start.position + start.size * 0.5F};
     require(std::isfinite(level.spawnPosition.x) && std::isfinite(level.spawnPosition.y), "Invalid spawn.");
     require(level.spawnPosition.x - simulation::playerSize.x * 0.5F >= start.position.x - start.size.x * 0.5F
                 && level.spawnPosition.x + simulation::playerSize.x * 0.5F <= start.position.x + start.size.x * 0.5F
@@ -59,10 +66,17 @@ void validate(const GeneratedLevel& level)
         require(std::isfinite(platform.position.x) && std::isfinite(platform.position.y)
                     && std::isfinite(platform.size.x) && std::isfinite(platform.size.y)
                     && platform.size.x > 0.0F && platform.size.y > 0.0F, "Invalid platform geometry.");
-        require(platform.position.x - platform.size.x * 0.5F >= generation::leftBound
-                    && platform.position.x + platform.size.x * 0.5F <= generation::rightBound
+        const glm::vec2 minimum = platform.position - platform.size * 0.5F;
+        const glm::vec2 maximum = platform.position + platform.size * 0.5F;
+        expectedBounds.minimum.x = std::min(expectedBounds.minimum.x, minimum.x);
+        expectedBounds.minimum.y = std::min(expectedBounds.minimum.y, minimum.y);
+        expectedBounds.maximum.x = std::max(expectedBounds.maximum.x, maximum.x);
+        expectedBounds.maximum.y = std::max(expectedBounds.maximum.y, maximum.y);
+        require(minimum.x >= level.bounds.minimum.x && minimum.y >= level.bounds.minimum.y
+                    && maximum.x <= level.bounds.maximum.x && maximum.y <= level.bounds.maximum.y
+                    && minimum.x >= generation::leftBound
                     && top(platform) >= generation::minimumTop && top(platform) <= generation::maximumTop,
-                "Level escaped visible design bounds.");
+                "Generated bounds do not contain a platform or vertical constraints changed.");
         require(!collision::overlaps({level.spawnPosition, simulation::playerSize}, platform), "Spawn penetrates geometry.");
         if (index > 0) {
             const auto& previous = level.platforms[index - 1];
@@ -74,6 +88,8 @@ void validate(const GeneratedLevel& level)
             require(!collision::overlaps(platform, level.platforms[other]), "Overlapping primary platforms.");
         }
     }
+    require(level.bounds.minimum == expectedBounds.minimum && level.bounds.maximum == expectedBounds.maximum,
+            "Level bounds do not exactly match platform extents.");
 }
 
 void simulateTransition(const GeneratedLevel& level, std::size_t targetIndex)
@@ -108,12 +124,19 @@ int main()
         std::size_t downward = 0;
         std::size_t sameHeight = 0;
         std::size_t changedLayouts = 0;
+        float minimumWidth = 4000.0F;
+        float maximumWidth = 0.0F;
+        double totalWidth = 0.0;
         GeneratedLevel previous;
         for (std::uint32_t seed = 0; seed < 1000; ++seed) {
             try {
                 const auto level = generateLevel(seed);
                 const auto repeated = generateLevel(seed);
                 validate(level);
+                const float width = level.bounds.maximum.x - level.bounds.minimum.x;
+                minimumWidth = std::min(minimumWidth, width);
+                maximumWidth = std::max(maximumWidth, width);
+                totalWidth += width;
                 require(level.seed == seed && repeated.seed == seed, "Seed metadata incorrect.");
                 require(sameLayout(level, repeated) && level.candidateAttempts == repeated.candidateAttempts
                             && level.fallbackCount == repeated.fallbackCount, "Same seed changed output.");
@@ -153,6 +176,9 @@ int main()
         std::cout << "Seeds 0..999 passed; " << upward << " upward, " << downward
                   << " downward, " << sameHeight << " same-height jumps passed real physics.\n";
         std::cout << "Bounded fallback, extreme seed, development spawn and reset passed.\n";
+        std::cout << "World widths: min=" << minimumWidth << ", max=" << maximumWidth
+                  << ", mean=" << totalWidth / 1000.0 << "; development="
+                  << development.bounds.maximum.x - development.bounds.minimum.x << '\n';
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

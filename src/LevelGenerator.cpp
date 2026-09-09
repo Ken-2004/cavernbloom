@@ -5,6 +5,8 @@
 #include <random>
 #include <stdexcept>
 
+#include <glm/common.hpp>
+
 namespace cavernbloom {
 namespace {
 
@@ -50,8 +52,7 @@ GeneratedLevel generateLevel(std::uint32_t seed, std::size_t attemptsPerPlatform
             const float top = candidate.position.y + candidate.size.y * 0.5F;
             return reachability.canReach(source, candidate)
                    && std::abs(candidate.position.y - source.position.y) <= maximumStep
-                   && top >= generation::minimumTop && top <= generation::maximumTop
-                   && candidate.position.x + candidate.size.x * 0.5F <= generation::rightBound;
+                   && top >= generation::minimumTop && top <= generation::maximumTop;
         };
 
         bool accepted = false;
@@ -78,6 +79,12 @@ GeneratedLevel generateLevel(std::uint32_t seed, std::size_t attemptsPerPlatform
         }
     }
     level.goalPlatformIndex = level.platforms.size() - 1;
+    level.bounds.minimum = level.platforms.front().position - level.platforms.front().size * 0.5F;
+    level.bounds.maximum = level.platforms.front().position + level.platforms.front().size * 0.5F;
+    for (const Platform& platform : level.platforms) {
+        level.bounds.minimum = glm::min(level.bounds.minimum, platform.position - platform.size * 0.5F);
+        level.bounds.maximum = glm::max(level.bounds.maximum, platform.position + platform.size * 0.5F);
+    }
     return level;
 }
 

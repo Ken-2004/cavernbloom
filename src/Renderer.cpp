@@ -18,7 +18,7 @@ Renderer::QuadGeometry::~QuadGeometry()
 Renderer::Renderer(const std::filesystem::path& shaderDirectory)
     : shader_(shaderDirectory / "basic.vert", shaderDirectory / "basic.frag")
 {
-    projectionLocation_ = shader_.uniformLocation("uProjection");
+    viewProjectionLocation_ = shader_.uniformLocation("uViewProjection");
     modelLocation_ = shader_.uniformLocation("uModel");
     colorLocation_ = shader_.uniformLocation("uColor");
 
@@ -55,18 +55,9 @@ void Renderer::resize(int framebufferWidth, int framebufferHeight) noexcept
 {
     glViewport(0, 0, framebufferWidth, framebufferHeight);
     drawable_ = framebufferWidth > 0 && framebufferHeight > 0;
-    if (!drawable_) {
-        return;
-    }
-    // Centered, Y-up world: 720 units tall, with horizontal coverage following aspect ratio.
-    constexpr float halfHeight = 360.0F;
-    const float aspect = static_cast<float>(framebufferWidth) / static_cast<float>(framebufferHeight);
-    const float halfWidth = halfHeight * aspect;
-    viewWidth_ = halfWidth * 2.0F;
-    projection_ = glm::ortho(-halfWidth, halfWidth, -halfHeight, halfHeight, -1.0F, 1.0F);
 }
 
-void Renderer::beginFrame() const noexcept
+void Renderer::beginFrame(const glm::mat4& viewProjection) const noexcept
 {
     if (!drawable_) {
         return;
@@ -74,7 +65,7 @@ void Renderer::beginFrame() const noexcept
     glClearColor(0.035F, 0.055F, 0.075F, 1.0F);
     glClear(GL_COLOR_BUFFER_BIT);
     shader_.bind();
-    shader_.setMatrix(projectionLocation_, projection_);
+    shader_.setMatrix(viewProjectionLocation_, viewProjection);
 }
 
 void Renderer::drawRectangle(const glm::vec2& position, const glm::vec2& size,
