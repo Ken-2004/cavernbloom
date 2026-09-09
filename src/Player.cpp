@@ -1,10 +1,12 @@
 #include "Player.hpp"
+#include "Collision.hpp"
 
 #include <algorithm>
 
 namespace cavernbloom {
 
-void Player::update(float deltaSeconds, int horizontalDirection, bool jumpPressed) noexcept
+void Player::update(float deltaSeconds, int horizontalDirection, bool jumpPressed,
+                    std::span<const Platform> platforms) noexcept
 {
     velocity_.x = static_cast<float>(std::clamp(horizontalDirection, -1, 1)) * simulation::moveSpeed;
     if (jumpPressed && grounded_) {
@@ -13,16 +15,18 @@ void Player::update(float deltaSeconds, int horizontalDirection, bool jumpPresse
     }
 
     velocity_.y += simulation::gravity * deltaSeconds;
-    position_ += velocity_ * deltaSeconds;
+    const collision::MovementResult resolved = collision::moveAndResolve(
+        position_, size_, velocity_, deltaSeconds, platforms);
+    position_ = resolved.position;
+    velocity_ = resolved.velocity;
+    grounded_ = resolved.grounded;
+}
 
-    const float restingCenterY = simulation::floorTop + size_.y * 0.5F;
-    if (position_.y <= restingCenterY) {
-        position_.y = restingCenterY;
-        velocity_.y = 0.0F;
-        grounded_ = true;
-    } else {
-        grounded_ = false;
-    }
+void Player::resetToSpawn() noexcept
+{
+    position_ = simulation::playerSpawn;
+    velocity_ = glm::vec2(0.0F);
+    grounded_ = false;
 }
 
 } // namespace cavernbloom

@@ -1,5 +1,6 @@
 #include "Game.hpp"
 #include "Renderer.hpp"
+#include "TestLevel.hpp"
 
 #include <GLFW/glfw3.h>
 
@@ -126,16 +127,20 @@ void Game::processInput()
 void Game::update(float deltaSeconds)
 {
     // Keep a press through frames without a simulation step; consume it only once.
-    player_.update(deltaSeconds, horizontalDirection_, std::exchange(jumpRequested_, false));
+    player_.update(deltaSeconds, horizontalDirection_, std::exchange(jumpRequested_, false),
+                   testLevel::platforms);
+    if (player_.position().y < simulation::fallResetY) {
+        player_.resetToSpawn();
+    }
 }
 
 void Game::render()
 {
     renderer_->beginFrame();
-    renderer_->drawRectangle(
-        glm::vec2(0.0F, simulation::floorTop - simulation::floorThickness * 0.5F),
-        glm::vec2(renderer_->viewWidth(), simulation::floorThickness),
-        glm::vec4(0.25F, 0.32F, 0.40F, 1.0F));
+    for (const Platform& platform : testLevel::platforms) {
+        renderer_->drawRectangle(platform.position, platform.size,
+                                 glm::vec4(0.25F, 0.32F, 0.40F, 1.0F));
+    }
     renderer_->drawRectangle(player_.position(), player_.size(),
                              glm::vec4(0.35F, 0.85F, 0.65F, 1.0F));
 }

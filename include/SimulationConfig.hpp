@@ -14,8 +14,6 @@ inline constexpr float jumpSpeed = 650.0F;
 inline constexpr glm::vec2 playerSize{40.0F, 64.0F};
 inline constexpr glm::vec2 playerSpawn{0.0F, 80.0F};
 
-// Temporary infinite horizontal boundary, visualized across the current view.
-inline constexpr float floorTop = -240.0F;
-inline constexpr float floorThickness = 40.0F;
+inline constexpr float fallResetY = -480.0F;
 
 } // namespace cavernbloom::simulation

@@ -48,9 +48,9 @@ FetchContent_MakeAvailable(glfw glad glm)
 glad_add_library(cavernbloom_glad STATIC REPRODUCIBLE API gl:core=3.3 EXTENSIONS NONE)
 
 add_executable(CavernBloom
-    src/main.cpp src/Game.cpp src/Renderer.cpp src/Shader.cpp src/Player.cpp
+    src/main.cpp src/Game.cpp src/Renderer.cpp src/Shader.cpp src/Player.cpp src/Collision.cpp
     include/Game.hpp include/Renderer.hpp include/Shader.hpp include/Player.hpp
-    include/SimulationConfig.hpp
+    include/SimulationConfig.hpp include/Platform.hpp include/Collision.hpp include/TestLevel.hpp
 )
 target_compile_features(CavernBloom PRIVATE cxx_std_20)
 set_target_properties(CavernBloom PROPERTIES CXX_EXTENSIONS OFF)
@@ -74,15 +74,19 @@ set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT CavernBloom)
 
 include(CTest)
 if(BUILD_TESTING)
-    add_executable(CavernBloomPlayerTests tests/PlayerTests.cpp src/Player.cpp)
-    target_compile_features(CavernBloomPlayerTests PRIVATE cxx_std_20)
-    set_target_properties(CavernBloomPlayerTests PROPERTIES CXX_EXTENSIONS OFF)
-    target_include_directories(CavernBloomPlayerTests PRIVATE include)
-    target_link_libraries(CavernBloomPlayerTests PRIVATE glm::glm)
-    if(MSVC)
-        target_compile_options(CavernBloomPlayerTests PRIVATE /W4 /permissive- /Zc:__cplusplus)
-    else()
-        target_compile_options(CavernBloomPlayerTests PRIVATE -Wall -Wextra -Wpedantic -Wconversion)
-    endif()
+    foreach(suite Player Collision)
+        set(test_target "CavernBloom${suite}Tests")
+        add_executable(${test_target} "tests/${suite}Tests.cpp" src/Player.cpp src/Collision.cpp)
+        target_compile_features(${test_target} PRIVATE cxx_std_20)
+        set_target_properties(${test_target} PROPERTIES CXX_EXTENSIONS OFF)
+        target_include_directories(${test_target} PRIVATE include)
+        target_link_libraries(${test_target} PRIVATE glm::glm)
+        if(MSVC)
+            target_compile_options(${test_target} PRIVATE /W4 /permissive- /Zc:__cplusplus)
+        else()
+            target_compile_options(${test_target} PRIVATE -Wall -Wextra -Wpedantic -Wconversion)
+        endif()
+    endforeach()
     add_test(NAME PlayerPhysics COMMAND CavernBloomPlayerTests)
+    add_test(NAME StaticPlatformCollision COMMAND CavernBloomCollisionTests)
 endif()
