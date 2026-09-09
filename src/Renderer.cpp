@@ -49,7 +49,6 @@ Renderer::Renderer(const std::filesystem::path& shaderDirectory)
         throw std::runtime_error("Failed to create quad geometry; OpenGL error "
                                  + std::to_string(error));
     }
-    model_ = glm::scale(glm::mat4(1.0F), glm::vec3(320.0F, 180.0F, 1.0F));
 }
 
 void Renderer::resize(int framebufferWidth, int framebufferHeight) noexcept
@@ -63,10 +62,11 @@ void Renderer::resize(int framebufferWidth, int framebufferHeight) noexcept
     constexpr float halfHeight = 360.0F;
     const float aspect = static_cast<float>(framebufferWidth) / static_cast<float>(framebufferHeight);
     const float halfWidth = halfHeight * aspect;
+    viewWidth_ = halfWidth * 2.0F;
     projection_ = glm::ortho(-halfWidth, halfWidth, -halfHeight, halfHeight, -1.0F, 1.0F);
 }
 
-void Renderer::render() const noexcept
+void Renderer::beginFrame() const noexcept
 {
     if (!drawable_) {
         return;
@@ -75,8 +75,18 @@ void Renderer::render() const noexcept
     glClear(GL_COLOR_BUFFER_BIT);
     shader_.bind();
     shader_.setMatrix(projectionLocation_, projection_);
-    shader_.setMatrix(modelLocation_, model_);
-    shader_.setColor(colorLocation_, glm::vec4(0.35F, 0.85F, 0.65F, 1.0F));
+}
+
+void Renderer::drawRectangle(const glm::vec2& position, const glm::vec2& size,
+                             const glm::vec4& color) const noexcept
+{
+    if (!drawable_) {
+        return;
+    }
+    const glm::mat4 model = glm::scale(
+        glm::translate(glm::mat4(1.0F), glm::vec3(position, 0.0F)), glm::vec3(size, 1.0F));
+    shader_.setMatrix(modelLocation_, model);
+    shader_.setColor(colorLocation_, color);
     glBindVertexArray(quad_.vertexArray);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
     glBindVertexArray(0);

@@ -48,8 +48,9 @@ FetchContent_MakeAvailable(glfw glad glm)
 glad_add_library(cavernbloom_glad STATIC REPRODUCIBLE API gl:core=3.3 EXTENSIONS NONE)
 
 add_executable(CavernBloom
-    src/main.cpp src/Game.cpp src/Renderer.cpp src/Shader.cpp
-    include/Game.hpp include/Renderer.hpp include/Shader.hpp
+    src/main.cpp src/Game.cpp src/Renderer.cpp src/Shader.cpp src/Player.cpp
+    include/Game.hpp include/Renderer.hpp include/Shader.hpp include/Player.hpp
+    include/SimulationConfig.hpp
 )
 target_compile_features(CavernBloom PRIVATE cxx_std_20)
 set_target_properties(CavernBloom PROPERTIES CXX_EXTENSIONS OFF)
@@ -70,3 +71,18 @@ foreach(shader basic.vert basic.frag)
     configure_file("shaders/${shader}" "shaders/${shader}" COPYONLY)
 endforeach()
 set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT CavernBloom)
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(CavernBloomPlayerTests tests/PlayerTests.cpp src/Player.cpp)
+    target_compile_features(CavernBloomPlayerTests PRIVATE cxx_std_20)
+    set_target_properties(CavernBloomPlayerTests PROPERTIES CXX_EXTENSIONS OFF)
+    target_include_directories(CavernBloomPlayerTests PRIVATE include)
+    target_link_libraries(CavernBloomPlayerTests PRIVATE glm::glm)
+    if(MSVC)
+        target_compile_options(CavernBloomPlayerTests PRIVATE /W4 /permissive- /Zc:__cplusplus)
+    else()
+        target_compile_options(CavernBloomPlayerTests PRIVATE -Wall -Wextra -Wpedantic -Wconversion)
+    endif()
+    add_test(NAME PlayerPhysics COMMAND CavernBloomPlayerTests)
+endif()

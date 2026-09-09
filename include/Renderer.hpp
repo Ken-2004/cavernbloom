@@ -2,6 +2,8 @@
 
 #include "Shader.hpp"
 
+#include <glm/vec2.hpp>
+
 namespace cavernbloom {
 
 class Renderer final {
@@ -14,7 +16,11 @@ public:
     Renderer& operator=(Renderer&&) = delete;
 
     void resize(int framebufferWidth, int framebufferHeight) noexcept;
-    void render() const noexcept;
+    void beginFrame() const noexcept;
+    // Call beginFrame first. Position is the center in world coordinates (+X right, +Y up).
+    void drawRectangle(const glm::vec2& position, const glm::vec2& size,
+                       const glm::vec4& color) const noexcept;
+    [[nodiscard]] float viewWidth() const noexcept { return viewWidth_; }
 
 private:
     struct QuadGeometry {
@@ -30,7 +36,7 @@ private:
     GLint modelLocation_ = -1;
     GLint colorLocation_ = -1;
     glm::mat4 projection_{1.0F};
-    glm::mat4 model_{1.0F};
+    float viewWidth_ = 1280.0F;
     bool drawable_ = false;
 };
 

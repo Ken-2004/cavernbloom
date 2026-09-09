@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Player.hpp"
+
 #include <memory>
 
 struct GLFWwindow;
@@ -29,13 +31,16 @@ private:
     };
 
     void processInput();
-    void update(double deltaSeconds);
+    void update(float deltaSeconds);
     void render();
 
     // Reverse destruction order keeps the context alive for all GPU cleanup.
     GlfwLifetime glfw_;
     std::unique_ptr<GLFWwindow, WindowDeleter> window_;
     std::unique_ptr<Renderer> renderer_;
+    Player player_;
+    int horizontalDirection_ = 0;
+    bool jumpRequested_ = false;
 };
 
 } // namespace cavernbloom
