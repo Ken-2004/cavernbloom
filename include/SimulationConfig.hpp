@@ -15,5 +15,6 @@ inline constexpr glm::vec2 playerSize{40.0F, 64.0F};
 inline constexpr glm::vec2 playerSpawn{0.0F, 80.0F};
 
 inline constexpr float fallResetY = -480.0F;
+inline constexpr double reachabilityFactor = 0.8;
 
 } // namespace cavernbloom::simulation

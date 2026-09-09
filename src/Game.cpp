@@ -1,6 +1,5 @@
 #include "Game.hpp"
 #include "Renderer.hpp"
-#include "TestLevel.hpp"
 
 #include <GLFW/glfw3.h>
 
@@ -73,6 +72,7 @@ Game::Game()
     glfwGetFramebufferSize(window_.get(), &width, &height);
     renderer_->resize(width, height);
     std::cout << "CavernBloom | OpenGL " << glGetString(GL_VERSION)
+              << " | Level seed " << level_.seed
               << " | A/D or arrows to move | Space to jump | Escape to close\n";
 }
 
@@ -128,7 +128,7 @@ void Game::update(float deltaSeconds)
 {
     // Keep a press through frames without a simulation step; consume it only once.
     player_.update(deltaSeconds, horizontalDirection_, std::exchange(jumpRequested_, false),
-                   testLevel::platforms);
+                   level_.platforms);
     if (player_.position().y < simulation::fallResetY) {
         player_.resetToSpawn();
     }
@@ -137,9 +137,12 @@ void Game::update(float deltaSeconds)
 void Game::render()
 {
     renderer_->beginFrame();
-    for (const Platform& platform : testLevel::platforms) {
+    for (std::size_t index = 0; index < level_.platforms.size(); ++index) {
+        const Platform& platform = level_.platforms[index];
+        const glm::vec4 color = index == level_.goalPlatformIndex
+            ? glm::vec4(0.95F, 0.68F, 0.25F, 1.0F) : glm::vec4(0.25F, 0.32F, 0.40F, 1.0F);
         renderer_->drawRectangle(platform.position, platform.size,
-                                 glm::vec4(0.25F, 0.32F, 0.40F, 1.0F));
+                                 color);
     }
     renderer_->drawRectangle(player_.position(), player_.size(),
                              glm::vec4(0.35F, 0.85F, 0.65F, 1.0F));

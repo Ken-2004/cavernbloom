@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Player.hpp"
+#include "LevelGenerator.hpp"
 
 #include <memory>
 
@@ -38,7 +39,8 @@ private:
     GlfwLifetime glfw_;
     std::unique_ptr<GLFWwindow, WindowDeleter> window_;
     std::unique_ptr<Renderer> renderer_;
-    Player player_;
+    GeneratedLevel level_ = generateLevel(generation::developmentSeed);
+    Player player_{level_.spawnPosition};
     int horizontalDirection_ = 0;
     bool jumpRequested_ = false;
 };

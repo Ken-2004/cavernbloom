@@ -5,6 +5,11 @@
 
 namespace cavernbloom {
 
+Player::Player(glm::vec2 spawnPosition) noexcept
+    : spawnPosition_(spawnPosition), position_(spawnPosition)
+{
+}
+
 void Player::update(float deltaSeconds, int horizontalDirection, bool jumpPressed,
                     std::span<const Platform> platforms) noexcept
 {
@@ -24,7 +29,7 @@ void Player::update(float deltaSeconds, int horizontalDirection, bool jumpPresse
 
 void Player::resetToSpawn() noexcept
 {
-    position_ = simulation::playerSpawn;
+    position_ = spawnPosition_;
     velocity_ = glm::vec2(0.0F);
     grounded_ = false;
 }
