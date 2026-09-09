@@ -31,6 +31,8 @@ bool sameLayout(const GeneratedLevel& first, const GeneratedLevel& second)
 {
     if (first.platforms.size() != second.platforms.size() || first.spawnPosition != second.spawnPosition
         || first.goalPlatformIndex != second.goalPlatformIndex
+        || first.goalZone.position != second.goalZone.position || first.goalZone.size != second.goalZone.size
+        || first.collectibles.size() != second.collectibles.size()
         || first.bounds.minimum != second.bounds.minimum || first.bounds.maximum != second.bounds.maximum) {
         return false;
     }
@@ -40,7 +42,67 @@ bool sameLayout(const GeneratedLevel& first, const GeneratedLevel& second)
             return false;
         }
     }
+    for (std::size_t index = 0; index < first.collectibles.size(); ++index) {
+        if (first.collectibles[index].position != second.collectibles[index].position
+            || first.collectibles[index].size != second.collectibles[index].size
+            || first.collectibles[index].collected != second.collectibles[index].collected) {
+            return false;
+        }
+    }
     return true;
+}
+
+std::vector<std::size_t> flowerHosts(const GeneratedLevel& level)
+{
+    std::vector<std::size_t> hosts;
+    for (const Collectible& flower : level.collectibles) {
+        const auto host = std::find_if(level.platforms.begin(), level.platforms.end(),
+            [&](const Platform& platform) { return flower.position.x == platform.position.x; });
+        require(host != level.platforms.end(), "Flower has no route platform.");
+        hosts.push_back(static_cast<std::size_t>(host - level.platforms.begin()));
+    }
+    return hosts;
+}
+
+void validateCollectibles(const GeneratedLevel& level)
+{
+    require(level.collectibles.size() == generation::collectibleCount, "Wrong flower count.");
+    const Platform& goal = level.goalZone;
+    const Platform& finalPlatform = level.platforms[level.goalPlatformIndex];
+    require(std::isfinite(goal.position.x) && std::isfinite(goal.position.y)
+                && goal.size == generation::goalSize && goal.size.x > 0.0F && goal.size.y > 0.0F
+                && goal.position.x == finalPlatform.position.x
+                && goal.position.y - goal.size.y * 0.5F == top(finalPlatform) + generation::goalClearance,
+            "Invalid goal zone.");
+    require(collision::overlaps({{finalPlatform.position.x, top(finalPlatform) + simulation::playerSize.y * 0.5F},
+                                 simulation::playerSize}, goal), "Standing player cannot reach goal.");
+    const auto hosts = flowerHosts(level);
+    for (std::size_t index = 0; index < level.collectibles.size(); ++index) {
+        const Collectible& flower = level.collectibles[index];
+        const Platform bounds{flower.position, flower.size};
+        require(std::isfinite(flower.position.x) && std::isfinite(flower.position.y)
+                    && std::isfinite(flower.size.x) && std::isfinite(flower.size.y)
+                    && flower.size.x > 0.0F && flower.size.y > 0.0F && !flower.collected,
+                "Invalid initial flower geometry/state.");
+        require(hosts[index] > 0 && hosts[index] < level.goalPlatformIndex, "Flower uses start or goal platform.");
+        const Platform& host = level.platforms[hosts[index]];
+        require(flower.position.y - flower.size.y * 0.5F == top(host) + generation::collectibleClearance,
+                "Flower lacks clearance above its host.");
+        require(collision::overlaps({{host.position.x, top(host) + simulation::playerSize.y * 0.5F},
+                                     simulation::playerSize}, bounds), "Standing player cannot collect flower.");
+        require(flower.position.x + flower.size.x * 0.5F < goal.position.x - goal.size.x * 0.5F
+                    && !collision::overlaps(bounds, goal), "Flower is inside or beyond goal.");
+        for (const Platform& platform : level.platforms) {
+            require(!collision::overlaps(bounds, platform), "Flower intersects platform geometry.");
+            require(!collision::overlaps(goal, platform), "Goal intersects platform geometry.");
+        }
+        for (std::size_t other = 0; other < index; ++other) {
+            const Collectible& previous = level.collectibles[other];
+            require(flower.position != previous.position
+                        && !collision::overlaps(bounds, {previous.position, previous.size}),
+                    "Duplicate or overlapping flowers.");
+        }
+    }
 }
 
 void validate(const GeneratedLevel& level)
@@ -90,6 +152,7 @@ void validate(const GeneratedLevel& level)
     }
     require(level.bounds.minimum == expectedBounds.minimum && level.bounds.maximum == expectedBounds.maximum,
             "Level bounds do not exactly match platform extents.");
+    validateCollectibles(level);
 }
 
 void simulateTransition(const GeneratedLevel& level, std::size_t targetIndex)
@@ -124,6 +187,7 @@ int main()
         std::size_t downward = 0;
         std::size_t sameHeight = 0;
         std::size_t changedLayouts = 0;
+        std::size_t changedFlowerSelections = 0;
         float minimumWidth = 4000.0F;
         float maximumWidth = 0.0F;
         double totalWidth = 0.0;
@@ -141,6 +205,7 @@ int main()
                 require(sameLayout(level, repeated) && level.candidateAttempts == repeated.candidateAttempts
                             && level.fallbackCount == repeated.fallbackCount, "Same seed changed output.");
                 if (seed > 0 && !sameLayout(previous, level)) { ++changedLayouts; }
+                if (seed > 0 && flowerHosts(previous) != flowerHosts(level)) { ++changedFlowerSelections; }
                 for (std::size_t index = 1; index < level.platforms.size(); ++index) {
                     const float rise = top(level.platforms[index]) - top(level.platforms[index - 1]);
                     if (rise > 0.0F) { ++upward; }
@@ -155,6 +220,7 @@ int main()
         }
         require(changedLayouts > 990 && upward > 0 && downward > 0 && sameHeight > 0,
                 "Seed sweep lacks layout or height variation.");
+        require(changedFlowerSelections > 990, "Seed sweep lacks flower platform-selection variation.");
         const auto fallback = generateLevel(42, 0);
         validate(fallback);
         require(fallback.candidateAttempts == 0 && fallback.fallbackCount == generation::routePlatformCount - 1,
@@ -176,6 +242,8 @@ int main()
         std::cout << "Seeds 0..999 passed; " << upward << " upward, " << downward
                   << " downward, " << sameHeight << " same-height jumps passed real physics.\n";
         std::cout << "Bounded fallback, extreme seed, development spawn and reset passed.\n";
+        std::cout << "8,000 flowers validated; " << changedFlowerSelections
+                  << "/999 neighboring seeds varied host selection; repeated layouts identical.\n";
         std::cout << "World widths: min=" << minimumWidth << ", max=" << maximumWidth
                   << ", mean=" << totalWidth / 1000.0 << "; development="
                   << development.bounds.maximum.x - development.bounds.minimum.x << '\n';

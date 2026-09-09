@@ -49,10 +49,11 @@ glad_add_library(cavernbloom_glad STATIC REPRODUCIBLE API gl:core=3.3 EXTENSIONS
 
 add_executable(CavernBloom
     src/main.cpp src/Game.cpp src/Renderer.cpp src/Shader.cpp src/Player.cpp src/Collision.cpp
-    src/JumpReachability.cpp src/LevelGenerator.cpp src/Camera2D.cpp
+    src/JumpReachability.cpp src/LevelGenerator.cpp src/Camera2D.cpp src/Progression.cpp
     include/Game.hpp include/Renderer.hpp include/Shader.hpp include/Player.hpp
     include/SimulationConfig.hpp include/Platform.hpp include/Collision.hpp
     include/JumpReachability.hpp include/LevelGenerator.hpp include/Camera2D.hpp include/Bounds2D.hpp
+    include/Collectible.hpp include/Progression.hpp
 )
 target_compile_features(CavernBloom PRIVATE cxx_std_20)
 set_target_properties(CavernBloom PROPERTIES CXX_EXTENSIONS OFF)
@@ -83,7 +84,10 @@ if(BUILD_TESTING)
         src/LevelGenerator.cpp src/JumpReachability.cpp src/Player.cpp src/Collision.cpp)
     add_executable(CavernBloomCameraTests tests/CameraTests.cpp src/Camera2D.cpp
         src/Player.cpp src/Collision.cpp)
-    foreach(suite Player Collision JumpReachability LevelGenerator Camera)
+    add_executable(CavernBloomCollectibleTests tests/CollectibleTests.cpp src/Progression.cpp src/Collision.cpp)
+    add_executable(CavernBloomProgressionTests tests/ProgressionTests.cpp src/Progression.cpp src/Collision.cpp
+        src/LevelGenerator.cpp src/JumpReachability.cpp)
+    foreach(suite Player Collision JumpReachability LevelGenerator Camera Collectible Progression)
         set(test_target "CavernBloom${suite}Tests")
         target_compile_features(${test_target} PRIVATE cxx_std_20)
         set_target_properties(${test_target} PROPERTIES CXX_EXTENSIONS OFF)
@@ -100,4 +104,6 @@ if(BUILD_TESTING)
     add_test(NAME JumpReachability COMMAND CavernBloomJumpReachabilityTests)
     add_test(NAME SeededLevelGeneration COMMAND CavernBloomLevelGeneratorTests)
     add_test(NAME Camera2D COMMAND CavernBloomCameraTests)
+    add_test(NAME Collectibles COMMAND CavernBloomCollectibleTests)
+    add_test(NAME Progression COMMAND CavernBloomProgressionTests)
 endif()

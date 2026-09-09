@@ -2,6 +2,9 @@
 #include "JumpReachability.hpp"
 
 #include <cmath>
+#include <algorithm>
+#include <array>
+#include <numeric>
 #include <random>
 #include <stdexcept>
 
@@ -85,6 +88,27 @@ GeneratedLevel generateLevel(std::uint32_t seed, std::size_t attemptsPerPlatform
         level.bounds.minimum = glm::min(level.bounds.minimum, platform.position - platform.size * 0.5F);
         level.bounds.maximum = glm::max(level.bounds.maximum, platform.position + platform.size * 0.5F);
     }
+    // Draw only after platform generation so the established route is unchanged.
+    std::array<std::size_t, generation::routePlatformCount - 2> candidates{};
+    std::iota(candidates.begin(), candidates.end(), std::size_t{1});
+    static_assert(generation::collectibleCount <= candidates.size());
+    for (std::size_t index = 0; index < generation::collectibleCount; ++index) {
+        const auto selected = static_cast<std::size_t>(sampleInteger(
+            random, static_cast<int>(index), static_cast<int>(candidates.size() - 1)));
+        std::swap(candidates[index], candidates[selected]);
+    }
+    std::sort(candidates.begin(), candidates.begin() + generation::collectibleCount);
+    level.collectibles.reserve(generation::collectibleCount);
+    for (std::size_t index = 0; index < generation::collectibleCount; ++index) {
+        const Platform& host = level.platforms[candidates[index]];
+        level.collectibles.push_back({
+            {host.position.x, host.position.y + host.size.y * 0.5F
+                + generation::collectibleClearance + generation::collectibleSize.y * 0.5F},
+            generation::collectibleSize});
+    }
+    const Platform& finalPlatform = level.platforms[level.goalPlatformIndex];
+    level.goalZone = {{finalPlatform.position.x, finalPlatform.position.y + finalPlatform.size.y * 0.5F
+                       + generation::goalClearance + generation::goalSize.y * 0.5F}, generation::goalSize};
     return level;
 }
 

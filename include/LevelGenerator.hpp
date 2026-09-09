@@ -2,6 +2,7 @@
 
 #include "Platform.hpp"
 #include "Bounds2D.hpp"
+#include "Collectible.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -12,6 +13,11 @@ namespace generation {
 
 inline constexpr std::uint32_t developmentSeed = 20260909U;
 inline constexpr std::size_t routePlatformCount = 28;
+inline constexpr std::size_t collectibleCount = 8;
+inline constexpr glm::vec2 collectibleSize{14.0F, 18.0F};
+inline constexpr float collectibleClearance = 12.0F;
+inline constexpr glm::vec2 goalSize{20.0F, 72.0F};
+inline constexpr float goalClearance = 4.0F;
 inline constexpr std::size_t maxCandidateAttempts = 32;
 inline constexpr float leftBound = -600.0F;
 inline constexpr float minimumTop = -260.0F;
@@ -32,6 +38,8 @@ inline constexpr double verticalStepFraction = 0.5;
 struct GeneratedLevel {
     // Every platform is on the primary route, in progression order.
     std::vector<Platform> platforms;
+    std::vector<Collectible> collectibles;
+    Platform goalZone;
     glm::vec2 spawnPosition;
     Bounds2D bounds;
     std::size_t goalPlatformIndex = 0;

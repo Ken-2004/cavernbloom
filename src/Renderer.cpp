@@ -64,6 +64,14 @@ void Renderer::beginFrame(const glm::mat4& viewProjection) const noexcept
     }
     glClearColor(0.035F, 0.055F, 0.075F, 1.0F);
     glClear(GL_COLOR_BUFFER_BIT);
+    setViewProjection(viewProjection);
+}
+
+void Renderer::setViewProjection(const glm::mat4& viewProjection) const noexcept
+{
+    if (!drawable_) {
+        return;
+    }
     shader_.bind();
     shader_.setMatrix(viewProjectionLocation_, viewProjection);
 }
