@@ -53,7 +53,7 @@ Game::Game()
     glfwSwapInterval(1);
     renderer_ = std::make_unique<Renderer>(CAVERNBLOOM_SHADER_DIR);
     camera_.setWorldBounds(level_.bounds);
-    camera_.recenter(player_.position());
+    camera_.recenter(gameplay_.player().position());
 
     glfwSetWindowUserPointer(window_.get(), this);
     glfwSetFramebufferSizeCallback(window_.get(), [](GLFWwindow* window, int width, int height) {
@@ -112,10 +112,10 @@ void Game::run()
         previousTime = currentTime;
         accumulator += frameDelta;
         while (accumulator >= simulation::fixedStepSeconds) {
-            update(static_cast<float>(simulation::fixedStepSeconds));
+            update();
             accumulator -= simulation::fixedStepSeconds;
         }
-        camera_.follow(player_.position());
+        camera_.follow(gameplay_.player().position());
         render();
         glfwSwapBuffers(window_.get());
         if (glfwGetWindowAttrib(window_.get(), GLFW_ICONIFIED) == GLFW_TRUE) {
@@ -140,43 +140,37 @@ void Game::processInput()
     horizontalDirection_ = static_cast<int>(right) - static_cast<int>(left);
 }
 
-void Game::update(float deltaSeconds)
+void Game::update()
 {
-    if (progression_.state() == GameState::Won) {
-        jumpRequested_ = false;
-        return;
+    const std::size_t previousCount = gameplay_.progression().collectedCount();
+    const GameplayEvent event = gameplay_.update(horizontalDirection_, std::exchange(jumpRequested_, false));
+    if (event == GameplayEvent::Fell || event == GameplayEvent::EnemyContact || event == GameplayEvent::HazardContact) {
+        camera_.recenter(gameplay_.player().position());
+        const char* cause = event == GameplayEvent::Fell ? "fall"
+            : event == GameplayEvent::EnemyContact ? "enemy contact" : "thorn contact";
+        std::cout << "Respawn after " << cause << "; collected flowers retained.\n";
     }
-    // Keep a press through frames without a simulation step; consume it only once.
-    player_.update(deltaSeconds, horizontalDirection_, std::exchange(jumpRequested_, false),
-                   level_.platforms);
-    if (player_.position().y < simulation::fallResetY) {
-        player_.resetToSpawn();
-        camera_.recenter(player_.position());
-    }
-    const std::size_t previousCount = progression_.collectedCount();
-    const bool justWon = progression_.update({player_.position(), player_.size()});
-    if (justWon) {
+    if (event == GameplayEvent::Won) {
         std::cout << "All flowers collected. Level won! Press R to restart the same seed.\n";
     }
-    if (justWon || progression_.collectedCount() != previousCount) {
+    if (event == GameplayEvent::Won || gameplay_.progression().collectedCount() != previousCount) {
         updateWindowTitle();
     }
 }
 
 void Game::restart()
 {
-    player_.resetToSpawn();
-    camera_.recenter(player_.position());
-    progression_.reset();
+    gameplay_.restart();
+    camera_.recenter(gameplay_.player().position());
     jumpRequested_ = false;
     updateWindowTitle();
 }
 
 void Game::updateWindowTitle()
 {
-    const std::string title = "CavernBloom | Flowers " + std::to_string(progression_.collectedCount())
-        + "/" + std::to_string(progression_.totalCount())
-        + (progression_.state() == GameState::Won ? " | Won - R to restart" : " | Playing - R to restart");
+    const std::string title = "CavernBloom | Flowers " + std::to_string(gameplay_.progression().collectedCount())
+        + "/" + std::to_string(gameplay_.progression().totalCount())
+        + (gameplay_.progression().state() == GameState::Won ? " | Won - R to restart" : " | Playing - R to restart");
     glfwSetWindowTitle(window_.get(), title.c_str());
 }
 
@@ -190,27 +184,33 @@ void Game::render()
         renderer_->drawRectangle(platform.position, platform.size,
                                  color);
     }
+    for (const Enemy& enemy : gameplay_.enemies()) {
+        renderer_->drawRectangle(enemy.position, enemy.size, {0.60F, 0.25F, 0.85F, 1.0F});
+    }
+    for (const Hazard& hazard : level_.hazards) {
+        renderer_->drawRectangle(hazard.position, hazard.size, {0.90F, 0.12F, 0.20F, 1.0F});
+    }
     const glm::vec4 flowerColor(1.0F, 0.25F, 0.70F, 1.0F);
-    const glm::vec4 goalColor = progression_.allCollected()
+    const glm::vec4 goalColor = gameplay_.progression().allCollected()
         ? glm::vec4(0.30F, 1.0F, 0.35F, 1.0F) : glm::vec4(0.65F, 0.28F, 0.22F, 1.0F);
     renderer_->drawRectangle(level_.goalZone.position, level_.goalZone.size, goalColor);
-    for (const Collectible& collectible : progression_.collectibles()) {
+    for (const Collectible& collectible : gameplay_.progression().collectibles()) {
         if (!collectible.collected) {
             renderer_->drawRectangle(collectible.position, collectible.size, flowerColor);
         }
     }
-    renderer_->drawRectangle(player_.position(), player_.size(),
+    renderer_->drawRectangle(gameplay_.player().position(), gameplay_.player().size(),
                              glm::vec4(0.35F, 0.85F, 0.65F, 1.0F));
 
     const glm::vec2 viewSize = camera_.visibleSize();
     renderer_->setViewProjection(glm::ortho(0.0F, viewSize.x, 0.0F, viewSize.y, -1.0F, 1.0F));
-    for (std::size_t index = 0; index < progression_.totalCount(); ++index) {
-        const glm::vec4 color = index < progression_.collectedCount()
+    for (std::size_t index = 0; index < gameplay_.progression().totalCount(); ++index) {
+        const glm::vec4 color = index < gameplay_.progression().collectedCount()
             ? flowerColor : glm::vec4(0.18F, 0.20F, 0.26F, 1.0F);
         renderer_->drawRectangle({24.0F + static_cast<float>(index) * 22.0F, viewSize.y - 24.0F},
                                  {14.0F, 14.0F}, color);
     }
-    if (progression_.state() == GameState::Won) {
+    if (gameplay_.progression().state() == GameState::Won) {
         const glm::vec2 center = viewSize * 0.5F;
         renderer_->drawRectangle(center, {320.0F, 96.0F}, {0.08F, 0.30F, 0.24F, 1.0F});
         renderer_->drawRectangle(center, {272.0F, 24.0F}, goalColor);

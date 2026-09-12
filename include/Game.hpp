@@ -3,7 +3,7 @@
 #include "Player.hpp"
 #include "LevelGenerator.hpp"
 #include "Camera2D.hpp"
-#include "Progression.hpp"
+#include "Gameplay.hpp"
 
 #include <memory>
 
@@ -34,7 +34,7 @@ private:
     };
 
     void processInput();
-    void update(float deltaSeconds);
+    void update();
     void render();
     void restart();
     void updateWindowTitle();
@@ -44,8 +44,7 @@ private:
     std::unique_ptr<GLFWwindow, WindowDeleter> window_;
     std::unique_ptr<Renderer> renderer_;
     GeneratedLevel level_ = generateLevel(generation::developmentSeed);
-    Player player_{level_.spawnPosition};
-    Progression progression_{level_.collectibles, level_.goalZone};
+    Gameplay gameplay_{level_};
     Camera2D camera_;
     int horizontalDirection_ = 0;
     bool jumpRequested_ = false;

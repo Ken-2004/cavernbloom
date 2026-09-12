@@ -1,5 +1,6 @@
 #include "LevelGenerator.hpp"
 #include "JumpReachability.hpp"
+#include "EncounterConfig.hpp"
 
 #include <cmath>
 #include <algorithm>
@@ -82,13 +83,7 @@ GeneratedLevel generateLevel(std::uint32_t seed, std::size_t attemptsPerPlatform
         }
     }
     level.goalPlatformIndex = level.platforms.size() - 1;
-    level.bounds.minimum = level.platforms.front().position - level.platforms.front().size * 0.5F;
-    level.bounds.maximum = level.platforms.front().position + level.platforms.front().size * 0.5F;
-    for (const Platform& platform : level.platforms) {
-        level.bounds.minimum = glm::min(level.bounds.minimum, platform.position - platform.size * 0.5F);
-        level.bounds.maximum = glm::max(level.bounds.maximum, platform.position + platform.size * 0.5F);
-    }
-    // Draw only after platform generation so the established route is unchanged.
+    // Select flower hosts before encounters, preserving their seeded route indices.
     std::array<std::size_t, generation::routePlatformCount - 2> candidates{};
     std::iota(candidates.begin(), candidates.end(), std::size_t{1});
     static_assert(generation::collectibleCount <= candidates.size());
@@ -98,6 +93,54 @@ GeneratedLevel generateLevel(std::uint32_t seed, std::size_t attemptsPerPlatform
         std::swap(candidates[index], candidates[selected]);
     }
     std::sort(candidates.begin(), candidates.begin() + generation::collectibleCount);
+    // The unselected suffix contains no flower hosts. Use ten distinct encounter hosts.
+    constexpr std::size_t encounterCount = encounters::enemyCount + encounters::hazardCount;
+    static_assert(generation::collectibleCount + encounterCount <= candidates.size());
+    for (std::size_t index = generation::collectibleCount;
+         index < generation::collectibleCount + encounterCount; ++index) {
+        const auto selected = static_cast<std::size_t>(sampleInteger(
+            random, static_cast<int>(index), static_cast<int>(candidates.size() - 1)));
+        std::swap(candidates[index], candidates[selected]);
+    }
+    std::array<bool, generation::routePlatformCount> encounterHosts{};
+    for (std::size_t index = 0; index < encounterCount; ++index) {
+        encounterHosts[candidates[generation::collectibleCount + index]] = true;
+    }
+    float offset = 0.0F;
+    for (std::size_t index = 0; index < level.platforms.size(); ++index) {
+        Platform& host = level.platforms[index];
+        const float expansion = encounterHosts[index] ? encounters::hostWidth - host.size.x : 0.0F;
+        host.position.x += offset + expansion * 0.5F;
+        host.size.x += expansion;
+        offset += expansion;
+    }
+    // Expanding hosts shifts downstream platforms equally, keeping gaps and heights intact.
+    for (std::size_t index = 1; index < level.platforms.size(); ++index) {
+        if (!reachability.canReach(level.platforms[index - 1], level.platforms[index])) {
+            throw std::runtime_error("Encounter host expansion invalidated a route transition.");
+        }
+    }
+    for (std::size_t index = 0; index < encounterCount; ++index) {
+        const std::size_t hostIndex = candidates[generation::collectibleCount + index];
+        const Platform& host = level.platforms[hostIndex];
+        const float top = host.position.y + host.size.y * 0.5F;
+        if (index < encounters::enemyCount) {
+            const float inset = encounters::edgeReserve + encounters::enemySize.x * 0.5F;
+            level.enemies.push_back({{host.position.x, top + encounters::enemySize.y * 0.5F}, encounters::enemySize,
+                host.position.x - host.size.x * 0.5F + inset,
+                host.position.x + host.size.x * 0.5F - inset, encounters::enemySpeed,
+                sampleInteger(random, 0, 1) == 0 ? -1 : 1, hostIndex});
+        } else {
+            level.hazards.push_back({{host.position.x, top + encounters::hazardSize.y * 0.5F},
+                                     encounters::hazardSize, hostIndex});
+        }
+    }
+    level.bounds.minimum = level.platforms.front().position - level.platforms.front().size * 0.5F;
+    level.bounds.maximum = level.platforms.front().position + level.platforms.front().size * 0.5F;
+    for (const Platform& platform : level.platforms) {
+        level.bounds.minimum = glm::min(level.bounds.minimum, platform.position - platform.size * 0.5F);
+        level.bounds.maximum = glm::max(level.bounds.maximum, platform.position + platform.size * 0.5F);
+    }
     level.collectibles.reserve(generation::collectibleCount);
     for (std::size_t index = 0; index < generation::collectibleCount; ++index) {
         const Platform& host = level.platforms[candidates[index]];

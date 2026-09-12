@@ -2,6 +2,8 @@
 #include "JumpReachability.hpp"
 #include "Player.hpp"
 #include "Collision.hpp"
+#include "EnemySystem.hpp"
+#include "EncounterConfig.hpp"
 
 #include <cmath>
 #include <algorithm>
@@ -27,9 +29,27 @@ float top(const Platform& platform)
     return platform.position.y + platform.size.y * 0.5F;
 }
 
+bool sameEncounters(const GeneratedLevel& first, const GeneratedLevel& second)
+{
+    if (first.enemies.size() != second.enemies.size() || first.hazards.size() != second.hazards.size()) { return false; }
+    for (std::size_t index = 0; index < first.enemies.size(); ++index) {
+        const Enemy& a = first.enemies[index];
+        const Enemy& b = second.enemies[index];
+        if (a.position != b.position || a.size != b.size || a.patrolMinX != b.patrolMinX
+            || a.patrolMaxX != b.patrolMaxX || a.speed != b.speed || a.direction != b.direction
+            || a.platformIndex != b.platformIndex) { return false; }
+    }
+    for (std::size_t index = 0; index < first.hazards.size(); ++index) {
+        const Hazard& a = first.hazards[index];
+        const Hazard& b = second.hazards[index];
+        if (a.position != b.position || a.size != b.size || a.platformIndex != b.platformIndex) { return false; }
+    }
+    return true;
+}
+
 bool sameLayout(const GeneratedLevel& first, const GeneratedLevel& second)
 {
-    if (first.platforms.size() != second.platforms.size() || first.spawnPosition != second.spawnPosition
+    if (!sameEncounters(first, second) || first.platforms.size() != second.platforms.size() || first.spawnPosition != second.spawnPosition
         || first.goalPlatformIndex != second.goalPlatformIndex
         || first.goalZone.position != second.goalZone.position || first.goalZone.size != second.goalZone.size
         || first.collectibles.size() != second.collectibles.size()
@@ -105,6 +125,81 @@ void validateCollectibles(const GeneratedLevel& level)
     }
 }
 
+void validateEncounters(const GeneratedLevel& level)
+{
+    require(level.enemies.size() == encounters::enemyCount && level.hazards.size() == encounters::hazardCount,
+            "Incorrect encounter counts.");
+    std::vector<std::size_t> occupiedHosts;
+    std::vector<Platform> dangerZones;
+    const auto checkZone = [&](const Platform& zone, std::size_t hostIndex) {
+        require(hostIndex > 0 && hostIndex < level.goalPlatformIndex, "Encounter uses start/goal or invalid host.");
+        require(std::find(occupiedHosts.begin(), occupiedHosts.end(), hostIndex) == occupiedHosts.end(), "Shared encounter host.");
+        occupiedHosts.push_back(hostIndex);
+        const Platform& host = level.platforms[hostIndex];
+        require(host.size.x == encounters::hostWidth, "Encounter host is too narrow.");
+        require(std::isfinite(zone.position.x) && std::isfinite(zone.position.y)
+                    && std::isfinite(zone.size.x) && std::isfinite(zone.size.y)
+                    && zone.size.x > 0.0F && zone.size.y > 0.0F, "Invalid encounter geometry.");
+        require(zone.position.y - zone.size.y * 0.5F == top(host), "Encounter not resting on its host.");
+        const float left = host.position.x - host.size.x * 0.5F;
+        const float right = host.position.x + host.size.x * 0.5F;
+        require(zone.position.x - zone.size.x * 0.5F >= left + encounters::edgeReserve
+                    && zone.position.x + zone.size.x * 0.5F <= right - encounters::edgeReserve,
+                "Encounter occupies reserved landing/takeoff space.");
+        require(zone.position.x - zone.size.x * 0.5F >= level.bounds.minimum.x
+                    && zone.position.x + zone.size.x * 0.5F <= level.bounds.maximum.x,
+                "Encounter outside horizontal camera bounds.");
+        for (const float x : {left + simulation::playerSize.x * 0.5F, right - simulation::playerSize.x * 0.5F}) {
+            require(!collision::overlaps({{x, top(host) + simulation::playerSize.y * 0.5F}, simulation::playerSize}, zone),
+                    "A fully supported edge landing intersects the danger zone.");
+        }
+        for (const Platform& platform : level.platforms) {
+            require(!collision::overlaps(zone, platform), "Encounter inside platform geometry.");
+        }
+        for (const Collectible& flower : level.collectibles) {
+            require(!collision::overlaps(zone, {flower.position, flower.size}), "Encounter intersects flower.");
+            require(flower.position.x != host.position.x, "Encounter shares flower host.");
+        }
+        for (const Platform& other : dangerZones) {
+            require(!collision::overlaps(zone, other), "Overlapping encounter zones.");
+        }
+        require(!collision::overlaps(zone, {level.spawnPosition, simulation::playerSize})
+                    && !collision::overlaps(zone, level.goalZone), "Unsafe spawn or goal.");
+        dangerZones.push_back(zone);
+    };
+    for (const Enemy& enemy : level.enemies) {
+        require(std::isfinite(enemy.patrolMinX) && std::isfinite(enemy.patrolMaxX)
+                    && enemy.patrolMinX < enemy.patrolMaxX && enemy.speed == encounters::enemySpeed
+                    && enemy.size == encounters::enemySize && (enemy.direction == -1 || enemy.direction == 1)
+                    && enemy.position.x == (enemy.patrolMinX + enemy.patrolMaxX) * 0.5F,
+                "Invalid initial patrol state.");
+        checkZone({enemy.position, {enemy.patrolMaxX - enemy.patrolMinX + enemy.size.x, enemy.size.y}}, enemy.platformIndex);
+    }
+    for (const Hazard& hazard : level.hazards) {
+        require(hazard.size == encounters::hazardSize, "Invalid thorn size.");
+        checkZone({hazard.position, hazard.size}, hazard.platformIndex);
+    }
+}
+
+void stressPatrols(const GeneratedLevel& level)
+{
+    EnemySystem system(level.enemies);
+    EnemySystem repeated(level.enemies);
+    for (int tick = 0; tick < 1200; ++tick) {
+        system.update();
+        repeated.update();
+        for (std::size_t index = 0; index < level.enemies.size(); ++index) {
+            const Enemy& enemy = system.enemies()[index];
+            const Enemy& duplicate = repeated.enemies()[index];
+            require(std::isfinite(enemy.position.x) && std::isfinite(enemy.position.y)
+                        && enemy.position.x >= enemy.patrolMinX && enemy.position.x <= enemy.patrolMaxX
+                        && enemy.position.y == level.enemies[index].position.y
+                        && enemy.position == duplicate.position && enemy.direction == duplicate.direction,
+                    "Patrol stress escaped interval or lost deterministic finite state.");
+        }
+    }
+}
+
 void validate(const GeneratedLevel& level)
 {
     const JumpReachability model;
@@ -153,6 +248,7 @@ void validate(const GeneratedLevel& level)
     require(level.bounds.minimum == expectedBounds.minimum && level.bounds.maximum == expectedBounds.maximum,
             "Level bounds do not exactly match platform extents.");
     validateCollectibles(level);
+    validateEncounters(level);
 }
 
 void simulateTransition(const GeneratedLevel& level, std::size_t targetIndex)
@@ -188,6 +284,9 @@ int main()
         std::size_t sameHeight = 0;
         std::size_t changedLayouts = 0;
         std::size_t changedFlowerSelections = 0;
+        std::size_t changedEncounters = 0;
+        std::size_t enemyTotal = 0;
+        std::size_t hazardTotal = 0;
         float minimumWidth = 4000.0F;
         float maximumWidth = 0.0F;
         double totalWidth = 0.0;
@@ -197,6 +296,9 @@ int main()
                 const auto level = generateLevel(seed);
                 const auto repeated = generateLevel(seed);
                 validate(level);
+                stressPatrols(level);
+                enemyTotal += level.enemies.size();
+                hazardTotal += level.hazards.size();
                 const float width = level.bounds.maximum.x - level.bounds.minimum.x;
                 minimumWidth = std::min(minimumWidth, width);
                 maximumWidth = std::max(maximumWidth, width);
@@ -204,6 +306,7 @@ int main()
                 require(level.seed == seed && repeated.seed == seed, "Seed metadata incorrect.");
                 require(sameLayout(level, repeated) && level.candidateAttempts == repeated.candidateAttempts
                             && level.fallbackCount == repeated.fallbackCount, "Same seed changed output.");
+                if (seed > 0 && !sameEncounters(previous, level)) { ++changedEncounters; }
                 if (seed > 0 && !sameLayout(previous, level)) { ++changedLayouts; }
                 if (seed > 0 && flowerHosts(previous) != flowerHosts(level)) { ++changedFlowerSelections; }
                 for (std::size_t index = 1; index < level.platforms.size(); ++index) {
@@ -221,6 +324,7 @@ int main()
         require(changedLayouts > 990 && upward > 0 && downward > 0 && sameHeight > 0,
                 "Seed sweep lacks layout or height variation.");
         require(changedFlowerSelections > 990, "Seed sweep lacks flower platform-selection variation.");
+        require(changedEncounters > 990, "Encounter layouts lack seed variation.");
         const auto fallback = generateLevel(42, 0);
         validate(fallback);
         require(fallback.candidateAttempts == 0 && fallback.fallbackCount == generation::routePlatformCount - 1,
@@ -244,6 +348,8 @@ int main()
         std::cout << "Bounded fallback, extreme seed, development spawn and reset passed.\n";
         std::cout << "8,000 flowers validated; " << changedFlowerSelections
                   << "/999 neighboring seeds varied host selection; repeated layouts identical.\n";
+        std::cout << enemyTotal << " enemies and " << hazardTotal << " hazards validated; 1,200 patrol ticks per enemy; "
+                  << changedEncounters << "/999 neighboring seeds varied encounters.\n";
         std::cout << "World widths: min=" << minimumWidth << ", max=" << maximumWidth
                   << ", mean=" << totalWidth / 1000.0 << "; development="
                   << development.bounds.maximum.x - development.bounds.minimum.x << '\n';

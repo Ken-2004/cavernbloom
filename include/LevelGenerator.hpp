@@ -3,6 +3,8 @@
 #include "Platform.hpp"
 #include "Bounds2D.hpp"
 #include "Collectible.hpp"
+#include "Enemy.hpp"
+#include "Hazard.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -39,6 +41,8 @@ struct GeneratedLevel {
     // Every platform is on the primary route, in progression order.
     std::vector<Platform> platforms;
     std::vector<Collectible> collectibles;
+    std::vector<Enemy> enemies;
+    std::vector<Hazard> hazards;
     Platform goalZone;
     glm::vec2 spawnPosition;
     Bounds2D bounds;
