@@ -9,7 +9,6 @@
 #include <utility>
 #include <string>
 
-#include <glm/gtc/matrix_transform.hpp>
 
 namespace cavernbloom {
 
@@ -138,6 +137,9 @@ void Game::processInput()
     const bool right = glfwGetKey(window_.get(), GLFW_KEY_D) == GLFW_PRESS
                        || glfwGetKey(window_.get(), GLFW_KEY_RIGHT) == GLFW_PRESS;
     horizontalDirection_ = static_cast<int>(right) - static_cast<int>(left);
+    if (gameplay_.progression().state() == GameState::Playing) {
+        presentation_.face(horizontalDirection_);
+    }
 }
 
 void Game::update()
@@ -161,6 +163,7 @@ void Game::update()
 void Game::restart()
 {
     gameplay_.restart();
+    presentation_.resetFacing();
     camera_.recenter(gameplay_.player().position());
     jumpRequested_ = false;
     updateWindowTitle();
@@ -176,45 +179,7 @@ void Game::updateWindowTitle()
 
 void Game::render()
 {
-    renderer_->beginFrame(camera_.viewProjection());
-    for (std::size_t index = 0; index < level_.platforms.size(); ++index) {
-        const Platform& platform = level_.platforms[index];
-        const glm::vec4 color = index == level_.goalPlatformIndex
-            ? glm::vec4(0.95F, 0.68F, 0.25F, 1.0F) : glm::vec4(0.25F, 0.32F, 0.40F, 1.0F);
-        renderer_->drawRectangle(platform.position, platform.size,
-                                 color);
-    }
-    for (const Enemy& enemy : gameplay_.enemies()) {
-        renderer_->drawRectangle(enemy.position, enemy.size, {0.60F, 0.25F, 0.85F, 1.0F});
-    }
-    for (const Hazard& hazard : level_.hazards) {
-        renderer_->drawRectangle(hazard.position, hazard.size, {0.90F, 0.12F, 0.20F, 1.0F});
-    }
-    const glm::vec4 flowerColor(1.0F, 0.25F, 0.70F, 1.0F);
-    const glm::vec4 goalColor = gameplay_.progression().allCollected()
-        ? glm::vec4(0.30F, 1.0F, 0.35F, 1.0F) : glm::vec4(0.65F, 0.28F, 0.22F, 1.0F);
-    renderer_->drawRectangle(level_.goalZone.position, level_.goalZone.size, goalColor);
-    for (const Collectible& collectible : gameplay_.progression().collectibles()) {
-        if (!collectible.collected) {
-            renderer_->drawRectangle(collectible.position, collectible.size, flowerColor);
-        }
-    }
-    renderer_->drawRectangle(gameplay_.player().position(), gameplay_.player().size(),
-                             glm::vec4(0.35F, 0.85F, 0.65F, 1.0F));
-
-    const glm::vec2 viewSize = camera_.visibleSize();
-    renderer_->setViewProjection(glm::ortho(0.0F, viewSize.x, 0.0F, viewSize.y, -1.0F, 1.0F));
-    for (std::size_t index = 0; index < gameplay_.progression().totalCount(); ++index) {
-        const glm::vec4 color = index < gameplay_.progression().collectedCount()
-            ? flowerColor : glm::vec4(0.18F, 0.20F, 0.26F, 1.0F);
-        renderer_->drawRectangle({24.0F + static_cast<float>(index) * 22.0F, viewSize.y - 24.0F},
-                                 {14.0F, 14.0F}, color);
-    }
-    if (gameplay_.progression().state() == GameState::Won) {
-        const glm::vec2 center = viewSize * 0.5F;
-        renderer_->drawRectangle(center, {320.0F, 96.0F}, {0.08F, 0.30F, 0.24F, 1.0F});
-        renderer_->drawRectangle(center, {272.0F, 24.0F}, goalColor);
-    }
+    presentation_.render(*renderer_, camera_, level_, gameplay_);
 }
 
 } // namespace cavernbloom

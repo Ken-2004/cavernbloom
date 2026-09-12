@@ -55,6 +55,8 @@ add_executable(CavernBloom
     include/JumpReachability.hpp include/LevelGenerator.hpp include/Camera2D.hpp include/Bounds2D.hpp
     src/EnemySystem.cpp src/Gameplay.cpp
     include/Enemy.hpp include/EnemySystem.hpp include/Hazard.hpp include/EncounterConfig.hpp include/Gameplay.hpp
+    src/GamePresentation.cpp src/PresentationMath.cpp
+    include/GamePresentation.hpp include/VisualTheme.hpp include/PresentationMath.hpp
     include/Collectible.hpp include/Progression.hpp
 )
 target_compile_features(CavernBloom PRIVATE cxx_std_20)
@@ -92,7 +94,8 @@ if(BUILD_TESTING)
     add_executable(CavernBloomEnemyTests tests/EnemyTests.cpp src/EnemySystem.cpp src/Camera2D.cpp)
     add_executable(CavernBloomHazardTests tests/HazardTests.cpp src/Gameplay.cpp src/EnemySystem.cpp
         src/Player.cpp src/Collision.cpp src/Progression.cpp src/LevelGenerator.cpp src/JumpReachability.cpp)
-    foreach(suite Player Collision JumpReachability LevelGenerator Camera Collectible Progression Enemy Hazard)
+    add_executable(CavernBloomPresentationTests tests/PresentationTests.cpp src/PresentationMath.cpp)
+    foreach(suite Player Collision JumpReachability LevelGenerator Camera Collectible Progression Enemy Hazard Presentation)
         set(test_target "CavernBloom${suite}Tests")
         target_compile_features(${test_target} PRIVATE cxx_std_20)
         set_target_properties(${test_target} PROPERTIES CXX_EXTENSIONS OFF)
@@ -113,4 +116,5 @@ if(BUILD_TESTING)
     add_test(NAME Progression COMMAND CavernBloomProgressionTests)
     add_test(NAME EnemyPatrol COMMAND CavernBloomEnemyTests)
     add_test(NAME HazardContact COMMAND CavernBloomHazardTests)
+    add_test(NAME PresentationLayout COMMAND CavernBloomPresentationTests)
 endif()

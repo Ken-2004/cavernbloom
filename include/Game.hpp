@@ -4,6 +4,7 @@
 #include "LevelGenerator.hpp"
 #include "Camera2D.hpp"
 #include "Gameplay.hpp"
+#include "GamePresentation.hpp"
 
 #include <memory>
 
@@ -46,6 +47,7 @@ private:
     GeneratedLevel level_ = generateLevel(generation::developmentSeed);
     Gameplay gameplay_{level_};
     Camera2D camera_;
+    GamePresentation presentation_;
     int horizontalDirection_ = 0;
     bool jumpRequested_ = false;
     bool restartRequested_ = false;

@@ -42,6 +42,8 @@ Renderer::Renderer(const std::filesystem::path& shaderDirectory)
     // The index buffer remains attached to the VAO.
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     const GLenum error = glGetError();
     if (error != GL_NO_ERROR || quad_.vertexArray == 0
@@ -57,12 +59,12 @@ void Renderer::resize(int framebufferWidth, int framebufferHeight) noexcept
     drawable_ = framebufferWidth > 0 && framebufferHeight > 0;
 }
 
-void Renderer::beginFrame(const glm::mat4& viewProjection) const noexcept
+void Renderer::beginFrame(const glm::mat4& viewProjection, const glm::vec4& clearColor) const noexcept
 {
     if (!drawable_) {
         return;
     }
-    glClearColor(0.035F, 0.055F, 0.075F, 1.0F);
+    glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
     glClear(GL_COLOR_BUFFER_BIT);
     setViewProjection(viewProjection);
 }
@@ -77,13 +79,14 @@ void Renderer::setViewProjection(const glm::mat4& viewProjection) const noexcept
 }
 
 void Renderer::drawRectangle(const glm::vec2& position, const glm::vec2& size,
-                             const glm::vec4& color) const noexcept
+                             const glm::vec4& color, float rotationRadians) const noexcept
 {
     if (!drawable_) {
         return;
     }
     const glm::mat4 model = glm::scale(
-        glm::translate(glm::mat4(1.0F), glm::vec3(position, 0.0F)), glm::vec3(size, 1.0F));
+        glm::rotate(glm::translate(glm::mat4(1.0F), glm::vec3(position, 0.0F)),
+                    rotationRadians, glm::vec3(0.0F, 0.0F, 1.0F)), glm::vec3(size, 1.0F));
     shader_.setMatrix(modelLocation_, model);
     shader_.setColor(colorLocation_, color);
     glBindVertexArray(quad_.vertexArray);
