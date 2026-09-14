@@ -11,7 +11,8 @@ class Player final {
 public:
     explicit Player(glm::vec2 spawnPosition = simulation::playerSpawn) noexcept;
     // jumpPressed is a one-step request, not the held state of the key.
-    void update(float deltaSeconds, int horizontalDirection, bool jumpPressed,
+    // Returns whether this step accepted a grounded jump.
+    bool update(float deltaSeconds, int horizontalDirection, bool jumpPressed,
                 std::span<const Platform> platforms) noexcept;
     void resetToSpawn() noexcept;
 

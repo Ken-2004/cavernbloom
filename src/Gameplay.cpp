@@ -27,18 +27,25 @@ Gameplay::Gameplay(const GeneratedLevel& level)
 
 GameplayEvent Gameplay::update(int horizontalDirection, bool jumpPressed) noexcept
 {
+    transitions_ = {};
     if (progression_.state() == GameState::Won) {
         return GameplayEvent::None;
     }
     enemies_.update();
-    player_.update(static_cast<float>(simulation::fixedStepSeconds), horizontalDirection, jumpPressed, level_.platforms);
+    transitions_.jumped = player_.update(static_cast<float>(simulation::fixedStepSeconds),
+        horizontalDirection, jumpPressed, level_.platforms);
     const GameplayEvent failure = player_.position().y < simulation::fallResetY
         ? GameplayEvent::Fell : detectContact({player_.position(), player_.size()}, enemies_.enemies(), level_.hazards);
     if (failure != GameplayEvent::None) {
         respawn();
+        transitions_.outcome = failure;
         return failure;
     }
-    return progression_.update({player_.position(), player_.size()}) ? GameplayEvent::Won : GameplayEvent::None;
+    const std::size_t previousCount = progression_.collectedCount();
+    transitions_.outcome = progression_.update({player_.position(), player_.size()})
+        ? GameplayEvent::Won : GameplayEvent::None;
+    transitions_.flowersCollected = progression_.collectedCount() - previousCount;
+    return transitions_.outcome;
 }
 
 void Gameplay::respawn() noexcept
@@ -49,6 +56,7 @@ void Gameplay::respawn() noexcept
 
 void Gameplay::restart() noexcept
 {
+    transitions_ = {};
     respawn();
     progression_.reset();
 }

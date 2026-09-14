@@ -5,6 +5,7 @@
 #include "Camera2D.hpp"
 #include "Gameplay.hpp"
 #include "GamePresentation.hpp"
+#include "AudioSystem.hpp"
 
 #include <memory>
 
@@ -48,6 +49,7 @@ private:
     Gameplay gameplay_{level_};
     Camera2D camera_;
     GamePresentation presentation_;
+    std::unique_ptr<AudioSystem> audio_;
     int horizontalDirection_ = 0;
     bool jumpRequested_ = false;
     bool restartRequested_ = false;

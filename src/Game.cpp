@@ -51,6 +51,7 @@ Game::Game()
     }
     glfwSwapInterval(1);
     renderer_ = std::make_unique<Renderer>(CAVERNBLOOM_SHADER_DIR);
+    audio_ = std::make_unique<AudioSystem>(CAVERNBLOOM_AUDIO_DIR);
     camera_.setWorldBounds(level_.bounds);
     camera_.recenter(gameplay_.player().position());
 
@@ -146,6 +147,11 @@ void Game::update()
 {
     const std::size_t previousCount = gameplay_.progression().collectedCount();
     const GameplayEvent event = gameplay_.update(horizontalDirection_, std::exchange(jumpRequested_, false));
+    for (const AudioCue cue : audioCues(gameplay_.transitions())) {
+        for (std::size_t index = 0; index < cue.count; ++index) {
+            audio_->play(cue.effect);
+        }
+    }
     if (event == GameplayEvent::Fell || event == GameplayEvent::EnemyContact || event == GameplayEvent::HazardContact) {
         camera_.recenter(gameplay_.player().position());
         const char* cause = event == GameplayEvent::Fell ? "fall"
