@@ -32,7 +32,7 @@ void Game::WindowDeleter::operator()(GLFWwindow* window) const noexcept
     glfwDestroyWindow(window);
 }
 
-Game::Game()
+Game::Game(const std::filesystem::path& resourceRoot)
 {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -50,8 +50,8 @@ Game::Game()
         throw std::runtime_error("Failed to load OpenGL 3.3 functions with GLAD.");
     }
     glfwSwapInterval(1);
-    renderer_ = std::make_unique<Renderer>(CAVERNBLOOM_SHADER_DIR);
-    audio_ = std::make_unique<AudioSystem>(CAVERNBLOOM_AUDIO_DIR);
+    renderer_ = std::make_unique<Renderer>(resourceRoot / "shaders");
+    audio_ = std::make_unique<AudioSystem>(resourceRoot / "assets" / "audio");
     camera_.setWorldBounds(level_.bounds);
     camera_.recenter(gameplay_.player().position());
 

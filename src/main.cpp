@@ -1,4 +1,5 @@
 #include "Game.hpp"
+#include "RuntimePaths.hpp"
 
 #include <cstdlib>
 #include <exception>
@@ -7,7 +8,7 @@
 int main()
 {
     try {
-        cavernbloom::Game game;
+        cavernbloom::Game game(cavernbloom::executableDirectory());
         game.run();
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {

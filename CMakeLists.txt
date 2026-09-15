@@ -6,6 +6,14 @@ endif()
 
 project(CavernBloom VERSION 0.1.0 LANGUAGES C CXX)
 
+# A Windows ZIP must not require a separately installed MSVC runtime.
+if(MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    set(USE_MSVC_RUNTIME_LIBRARY_DLL OFF CACHE BOOL "Use the static runtime in GLFW" FORCE)
+    # Keep linker debug metadata out of the distributed Release executable.
+    add_link_options("$<$<CONFIG:Release>:/DEBUG:NONE>")
+endif()
+
 include(FetchContent)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static dependencies")
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
@@ -79,29 +87,56 @@ add_executable(CavernBloom
     include/GamePresentation.hpp include/VisualTheme.hpp include/PresentationMath.hpp
     include/Collectible.hpp include/Progression.hpp
     src/AudioSystem.cpp src/AudioCues.cpp include/AudioSystem.hpp include/AudioCues.hpp
+    src/RuntimePaths.cpp include/RuntimePaths.hpp
 )
 target_compile_features(CavernBloom PRIVATE cxx_std_20)
 set_target_properties(CavernBloom PROPERTIES CXX_EXTENSIONS OFF)
 target_include_directories(CavernBloom PRIVATE include)
 target_link_libraries(CavernBloom PRIVATE glfw cavernbloom_glad glm::glm cavernbloom_audio_backend)
-target_compile_definitions(CavernBloom PRIVATE
-    GLFW_INCLUDE_NONE
-    CAVERNBLOOM_SHADER_DIR="${CMAKE_CURRENT_BINARY_DIR}/shaders"
-    CAVERNBLOOM_AUDIO_DIR="${CMAKE_CURRENT_BINARY_DIR}/assets/audio"
-)
+target_compile_definitions(CavernBloom PRIVATE GLFW_INCLUDE_NONE)
 if(MSVC)
     target_compile_options(CavernBloom PRIVATE /W4 /permissive- /Zc:__cplusplus)
 else()
     target_compile_options(CavernBloom PRIVATE -Wall -Wextra -Wpedantic -Wconversion)
 endif()
 
-# configure_file also causes shader edits to be copied on the next build.
-foreach(shader basic.vert basic.frag)
-    configure_file("shaders/${shader}" "shaders/${shader}" COPYONLY)
-endforeach()
-foreach(sound jump collect damage win)
-    configure_file("assets/audio/${sound}.ogg" "assets/audio/${sound}.ogg" COPYONLY)
-endforeach()
+# Explicit lists also define the complete install/package manifest.
+set(CAVERNBLOOM_SHADERS shaders/basic.vert shaders/basic.frag)
+set(CAVERNBLOOM_AUDIO assets/audio/jump.ogg assets/audio/collect.ogg
+    assets/audio/damage.ogg assets/audio/win.ogg)
+add_custom_target(cavernbloom_resources ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:CavernBloom>/shaders"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:CavernBloom>/assets/audio"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CAVERNBLOOM_SHADERS} "$<TARGET_FILE_DIR:CavernBloom>/shaders"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CAVERNBLOOM_AUDIO} "$<TARGET_FILE_DIR:CavernBloom>/assets/audio"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different THIRD_PARTY_ASSETS.md "$<TARGET_FILE_DIR:CavernBloom>"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    COMMENT "Copying runtime resources beside CavernBloom"
+    VERBATIM
+)
+add_dependencies(CavernBloom cavernbloom_resources)
+
+install(TARGETS CavernBloom RUNTIME DESTINATION .)
+install(FILES ${CAVERNBLOOM_SHADERS} DESTINATION shaders)
+install(FILES ${CAVERNBLOOM_AUDIO} DESTINATION assets/audio)
+install(FILES THIRD_PARTY_ASSETS.md DESTINATION .)
+
+set(CPACK_GENERATOR ZIP)
+set(CPACK_PACKAGE_NAME CavernBloom)
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_DIRECTORY "${CMAKE_BINARY_DIR}/package")
+set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY ON)
+if(WIN32)
+    if(CMAKE_GENERATOR_PLATFORM MATCHES "[Aa][Rr][Mm]64" OR CMAKE_SYSTEM_PROCESSOR MATCHES "[Aa][Rr][Mm]64")
+        set(CAVERNBLOOM_PACKAGE_ARCH arm64)
+    elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        set(CAVERNBLOOM_PACKAGE_ARCH x64)
+    else()
+        set(CAVERNBLOOM_PACKAGE_ARCH x86)
+    endif()
+    set(CPACK_PACKAGE_FILE_NAME "CavernBloom-${PROJECT_VERSION}-Windows-${CAVERNBLOOM_PACKAGE_ARCH}")
+endif()
+include(CPack)
 set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT CavernBloom)
 
 include(CTest)

@@ -1,5 +1,9 @@
 /build/
 /build-*/
+/package/
+/release/
+/_CPack_Packages/
+*.zip
 /out/
 /.vs/
 /.idea/

@@ -1,64 +1,125 @@
 # CavernBloom
 
-CavernBloom is an original C++/OpenGL 2D platformer currently under development. Its application, rendering, movement, and collision foundation is written from scratch, using original procedural geometry for its current visual presentation.
+A playable C++20/OpenGL platformer that builds a scrolling cavern around the player's jump physics. Its procedural route is checked analytically and exercised by automated simulation across 1,000 deterministic seeds.
 
-**Status:** early development. Player movement, static AABB collision, deterministic procedural generation, a scrolling 2D camera, flower collection, goal progression, patrol enemies, thorn hazards, and four short sound effects are implemented.
+![CavernBloom gameplay: a mint traveler exploring a procedural cavern](docs/screenshots/gameplay.png)
 
-**Stack:** C++20, CMake 3.25+, OpenGL 3.3 Core, [GLFW 3.4](https://github.com/glfw/glfw/releases/tag/3.4), [GLAD 2.0.8](https://github.com/Dav1dde/glad/releases/tag/v2.0.8), [GLM 1.0.1](https://github.com/g-truc/glm/releases/tag/1.0.1), and [miniaudio 0.11.23](https://github.com/mackron/miniaudio/tree/0.11.23). CMake FetchContent downloads pinned upstream tags; GLAD generates its loader in the build directory using its bundled specification.
+**Portfolio release / playable prototype | Windows runtime verified | C++20 / OpenGL 3.3**
 
-The foundation includes a resizable 1280 x 720 window, VSync, fixed-timestep simulation at 120 Hz, file-based GLSL shaders with compile/link diagnostics, and RAII ownership of the window and GPU resources. Reusable colored rectangles share one indexed VAO/VBO/EBO quad and render with `projection * view * model`. Positions denote world-space rectangle centers, +X points right, and +Y points up. The view stays 720 world units tall and adjusts horizontal coverage on resize without changing physics state.
+## Highlights
 
-`Game` owns the lifecycle, input, camera, and accumulator loop; `Gameplay` owns the window-independent fixed-step session and failure/restart flow; `Player` owns movement and gravity without OpenGL resources; `Renderer` owns shared quad geometry; and `Shader` owns the linked program. GPU resources are released before the window and GLFW. Simulation constants live in `include/SimulationConfig.hpp`: movement 280 units/s, gravity -1800 units/s², jump impulse 650 units/s, and frame-delta clamp 0.25 s. Excess elapsed time after a long stall is discarded to bound catch-up work; rendering uses the latest simulation state without interpolation.
+- Physics-aware generation of 28-platform worlds, with conservative jump margins and bounded fallback placement.
+- Deterministic player simulation at **120 Hz**, independent of rendering and camera state.
+- **27,000 generated jumps** tested with the real player and AABB collision code across **1,000 seeds**.
+- Original procedural geometry, layered scrolling backgrounds, a flower HUD, and a completion presentation.
+- Seeded flowers, patrol enemies, thorn hazards, and restartable progression.
+- **11 headless CTest suites**, plus a Windows build-and-test workflow.
+- Four licensed Kenney CC0 sound effects with graceful audio failure handling.
 
-Move with **A/D** or **Left/Right**, jump with **Space**, restart the current seed with **R**, and exit with **Escape**. Opposite directions cancel and releasing movement stops on the next simulation step. A fresh Space press jumps only while grounded; holding it does not auto-jump on landing. The 40 x 64 player spawns above the generated starting platform. Falling below center Y = -480 resets position, velocity, and grounded state to that level's spawn and recenters the camera. Falls retain collected flowers; enemy or thorn contact also respawns the player and recenters the camera while preserving collected flowers and an unlocked goal. All failures reset patrols to their generated positions. R restores all flowers and resets the player, camera, counts, enemies, and Playing state. R responds to a fresh press, not held-key repeats. The fixed reset threshold remains below the unchanged vertical generation range.
+## Gameplay
 
-`Camera2D` follows horizontally outside a ±120-unit dead zone, with fixed Y = 0 and no smoothing. Very narrow viewports reduce the dead zone to keep following useful. The camera clamps the visible left/right edges to `GeneratedLevel.bounds`, derived from every platform's geometry; a viewport wider than the entire level centers it with balanced margins. Camera state never enters physics, collision, or generation. Minimized windows retain the last valid camera dimensions.
+Collect eight flowers, avoid patrols and thorns, then reach the unlocked shrine. Contact or falling respawns the player while retaining flowers; restart restores the same seed and clears progress. The current executable uses a fixed seed so runs are repeatable.
 
-`Platform` stores center and full size; `Collision` resolves movement against static AABBs independently of rendering. Each fixed step applies input and gravity, resolves X then Y against the nearest crossed faces, and establishes grounded state. Only the blocked velocity component is cleared. Touching edges are not overlap; landing requires positive horizontal overlap. Bodies must start outside platform interiors. This supports solid tops, sides, and undersides, with no slopes, moving platforms, or general penetration recovery.
+| Input | Action |
+| --- | --- |
+| A/D or Left/Right | Move |
+| Space | Jump while grounded |
+| R | Restart the current level |
+| Escape | Exit |
 
-CavernBloom's generator evaluates candidate platform transitions against the player's ballistic jump model using the same movement speed, gravity, and jump velocity as the fixed-step simulation, with a conservative reachability margin. It selects the descending root of `dy = v*t + 0.5*g*t*t`, reserves 20% of theoretical horizontal travel and apex height, and requires 80% of the player's width to overlap each takeoff/landing platform. The continuous apex is about 117.36 units, same-height flight is 0.7222 s, and horizontal reach is 202.22 units before the margin (161.78 after). These are derived from `SimulationConfig.hpp`, not separate physics constants.
+## Screenshots
 
-`generateLevel(seed)` uses a local `std::mt19937` and a fixed integer mapping. The same seed produces the same layout without using time. Twenty-eight platforms form a guaranteed reachable primary route from left to right, roughly 3,600 world units wide: a wide start, varied 48–64-unit platforms, ten 128-unit encounter platforms, and a shrine on the final platform well beyond the initial view. Candidates must pass reachability and layout checks, with at most 32 attempts per placement and a validated same-height fallback. Additional height-step limits keep nearby arcs clear. Bounds contain the actual platform extents rather than a screen-sized X limit. The runtime development seed is `20260909` in `LevelGenerator.hpp`; relaunching repeats it. `TestLevel.hpp` remains a collision-test fixture only.
+| Start | Mid-level | Completion |
+| --- | --- | --- |
+| ![Start area, traveler, and HUD](docs/screenshots/start.png) | ![Scrolling cavern gameplay](docs/screenshots/gameplay.png) | ![Completed shrine and win presentation](docs/screenshots/win.png) |
 
-Exactly eight magenta flowers are placed above eight distinct route platforms, excluding the start and final platform. A partial shuffle uses the same local RNG after platform generation, preserving the existing flower host selection. Selected indices are sorted into route order. Each 14 x 18 flower is centered horizontally over its host, with its bottom 12 units above the platform top; a standing player can collect it. `Collectible` is a plain world-space value type. `GeneratedLevel` stores the initial layout and a 20 x 72 goal zone four units above the final platform.
+## Technical Design
 
-`Progression` owns mutable collectible flags and counts, using world-space AABB triggers independently of movement resolution. Each flower counts once and disappears when collected. The final marker stays muted red until all eight flowers are collected, then turns green. Overlapping the unlocked goal enters `Won` once, freezes player and enemy simulation, and displays a centered bloom emblem and completion checkmark. Rendering, resizing, R, and Escape continue working. With zero required flowers, the goal starts unlocked but still requires overlap to win.
+Platform candidates use the ballistic model:
 
-A bordered screen-space panel of eight procedural flowers at the top-left shows progress (dim = remaining, pink = collected); the window title also reports the count and Playing/Won state. The HUD and win banner use the same shared rectangle geometry as the world, with no fonts, textures, or UI framework.
+```text
+dy = v*t + 0.5*g*t^2
+```
 
-Six purple enemies patrol horizontally at 72 world units/s, using `EnemySystem` and the existing 120 Hz timestep. Four crimson thorn clusters represent static hazards. Both layouts use the same local seeded RNG after flower host selection, with distinct intermediate hosts that exclude flowers, the start, and the goal. Encounter hosts widen to 128 units; downstream positions shift to preserve every gap and height. This intentionally changes absolute positions for existing seeds, but not flower host indices, platform count, vertical constraints, or the reachability algorithm.
+`JumpReachability` uses the same gravity (**-1800 units/s^2**), jump velocity (**650 units/s**), and horizontal speed (**280 units/s**) as `Player`. It chooses the descending landing time, reserves **20%** of theoretical horizontal travel and apex height, and requires **80%** player-width support at takeoff and landing.
 
-Each 20 x 24 enemy starts at its host center. Patrol center limits are the platform edges inset by the enemy half-width plus a reserved player width and six units of clearance. With current dimensions this gives center +/-8 units, leaving 46 units of safe surface on each side of the entire patrol envelope. Patrols clamp and reverse at boundaries, discarding that tick's overshoot. Thorns are centered 16 x 12 triggers, leaving 56 units on each side. Land near an encounter platform's edge, then jump over its center before continuing. Static collision semantics and player physics are unchanged. The route remains geometrically reachable; avoiding moving enemies is **not mathematically guaranteed**.
+Continuous feasibility is only the first check. Tests traverse every generated transition using the real 120 Hz movement and collision implementation, catching differences caused by discrete integration and platform geometry. These checks validate geometric reachability; they do not guarantee avoidance of moving enemies.
 
-`Gameplay` advances patrols and player movement, checks world-space contact, then updates flower/goal progression if the player survived. Immediate respawn needs no invincibility timer because the starting platform has no encounters. Generated layouts remain immutable during play; R restarts the same seed without regeneration. Horizontal camera bounds remain derived from platform extents, which also contain all encounter X extents; the camera still uses fixed Y. All visuals use shared rectangle geometry with no external assets.
+A local seeded RNG controls layouts. Camera following, procedural decoration, and audio remain separate from simulation. OpenGL resources and audio resources have explicit RAII owners. More detail is in [Technical notes](docs/TECHNICAL_NOTES.md).
 
-`VisualTheme.hpp` centralizes the corrupted-cavern palette: blue/purple shadows, moss-edged stone, a mint hooded traveler, pink flowers, violet horned creatures, and crimson thorns. `GamePresentation` draws these from shared rectangles, with rotation and alpha blending for facets, petals, and restrained glow accents. Three repeating silhouette layers move at 0.12, 0.25, and 0.40 times camera X, with sixteen dim decorative motes. These coordinates never enter gameplay. Off-screen world objects are skipped when drawing.
+## Architecture
 
-The shrine has crossed orange seals while locked and gold/green accents when unlocked. Won preserves frozen gameplay beneath a dimmed, bordered bloom panel; the flower HUD stays visible. HUD and win-panel geometry scale down for narrow windows. The player's last facing direction is presentation-only, retained while idle and reset by R. No external art, textures, or fonts are included; the visuals remain original procedural geometry under development.
+```mermaid
+flowchart TD
+    Main[main / RuntimePaths] --> Game
+    Game --> Gameplay
+    Gameplay --> Player
+    Player --> Collision
+    Gameplay --> Progression
+    Progression --> Collision
+    Gameplay --> EnemySystem
+    Game --> Camera2D
+    Game --> GamePresentation
+    Game --> Renderer
+    GamePresentation --> Renderer
+    Renderer --> Shader
+    Game --> AudioSystem
+    Gameplay --> Transitions[GameplayTransitions]
+    Transitions --> AudioCues
+    AudioCues --> Game
+    Game --> LevelGenerator
+    LevelGenerator --> JumpReachability
+```
 
-`AudioSystem` owns miniaudio playback through a private RAII implementation. Four short Kenney CC0 effects mark accepted grounded jumps, each new flower, enemy/thorn damage, and the single win transition. Falls and R restart are silent; holding Space or contacting an already collected flower adds no cue. Effects are predecoded and can overlap, with master volume 0.6 and pickup/win gains 0.75 (combined 0.45). Missing/invalid files disable only their effect; an unavailable device disables audio while gameplay continues. There is no background music. Sources, original filenames, CC0 terms, and software license choices are recorded in [THIRD_PARTY_ASSETS.md](THIRD_PARTY_ASSETS.md).
+`Game` coordinates input, the accumulator loop, and resource ownership. `Gameplay` advances the fixed-step session and reports transitions; it has no OpenGL or miniaudio dependency. `GamePresentation` draws through one shared indexed rectangle pipeline. `RuntimePaths` locates resources beside the executable.
 
-## Build and run
+## Testing
 
-On Windows, install Visual Studio 2022 or newer with **Desktop development with C++**, a Windows SDK, and CMake tools. Use a Developer PowerShell with CMake and Git on PATH. Python 3 with Jinja2 is required for GLAD; internet access is needed for the first dependency download.
+| Automated coverage | Validated count |
+| --- | ---: |
+| CTest suites | 11 |
+| Deterministic seeds | 0-999 |
+| Generated transitions simulated | 27,000 |
+| Flower placements | 8,000 |
+| Enemy placements | 6,000 |
+| Hazard placements | 4,000 |
+| Patrol updates | 7.2 million, plus replay validation |
+
+Focused suites also cover collision boundaries, camera behavior, exact-once collection/winning, respawn/restart, presentation layout, and sound mapping. CTest opens no window and requires no audio device. [Windows CI](.github/workflows/ci.yml) configures, builds Release, and runs the tests on pushes and pull requests; its first hosted run is pending publication of these changes.
+
+## Build
+
+Use Visual Studio 2022 or newer with **Desktop development with C++**, a Windows SDK, CMake **3.25+**, Git, and Python **3.12**. Run from a Developer PowerShell; the first configure downloads dependencies.
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install Jinja2==3.1.6
 $env:VIRTUAL_ENV = "$PWD\.venv"
 $env:PATH = "$env:VIRTUAL_ENV\Scripts;$env:PATH"
-cmake -S . -B build
+cmake -S . -B build -A x64
 cmake --build build --config Debug
 ctest --test-dir build -C Debug --output-on-failure
 .\build\Debug\CavernBloom.exe
 ```
 
-If Visual Studio's generator is unavailable but its C++ tools are installed, set `$env:CMAKE_GENERATOR = "Ninja Multi-Config"` in the developer shell before the first configure. This phase was built and checked on Windows with MSVC 19.51 and the Visual Studio 2026 generator. CMake 4.3 reports upstream GLM 1.0.1 compatibility deprecation warnings; the application compiles without warnings under `/W4`.
+Pinned dependencies: **GLFW 3.4**, **GLAD 2.0.8**, **GLM 1.0.1**, **miniaudio 0.11.23**, and GLAD's **Jinja2 3.1.6**. Dependency sources and generated loaders stay in the build tree. Resource files are copied beside the executable on each build.
 
-For a single-configuration generator on Linux/macOS, configure with `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug`, build with the command above, then run `./build/CavernBloom`. Install a C++20 toolchain, CMake, Git, Python/Jinja2, and platform window-system development packages required by [GLFW](https://www.glfw.org/docs/3.4/compile.html). An OpenGL 3.3-capable driver is required. These platforms are intended targets; Windows is the initial development platform.
+## Portable Release
 
-CMake copies shaders into `build/shaders` and the four sounds into `build/assets/audio`, embedding those absolute directories in this development executable, so launching does not depend on the working directory. Rebuild after shader or audio asset edits. Reconfigure/rebuild if moving the build tree; standalone distribution packaging is not implemented.
+```powershell
+cmake -S . -B build-release -A x64
+cmake --build build-release --config Release
+ctest --test-dir build-release -C Release --output-on-failure
+cmake --install build-release --config Release --prefix build-release/install
+cpack --config build-release/CPackConfig.cmake -C Release
+```
 
-To check the foundation, let the mint-colored player land on the wide starting platform, then jump right along the scrolling route, collecting all eight pink flowers before entering the final goal marker. Stop to check camera stability, walk off an edge to test player/camera reset, and resize while traversing. Check that collection lights the HUD, the goal unlocks after eight flowers, and the bloom completion panel appears at the goal. Press R to replay the same seed or Escape to close it. Build output, downloaded dependencies, and generated loader files are ignored by Git.
+The ZIP is written to `build-release/package/CavernBloom-0.1.0-Windows-x64.zip`. Extract the entire folder and run `CavernBloom.exe`. It loads `shaders/` and `assets/audio/` beside itself and includes `THIRD_PARTY_ASSETS.md`; neither the source tree nor the original build directory is needed. The Windows build links the MSVC runtime statically. A working OpenGL 3.3 driver and Windows desktop are still required. No public release has been published.
 
-CTest runs `PlayerPhysics`, `StaticPlatformCollision`, `JumpReachability`, `SeededLevelGeneration`, `Camera2D`, `Collectibles`, `Progression`, `EnemyPatrol`, `HazardContact`, `PresentationLayout`, and `AudioCueMapping` without a window or audio device. Existing movement/collision regressions remain, with analytic reachability tests and an invariant sweep over seeds 0–999. The sweep checks world bounds and attempts all 27,000 generated jumps with the real 120 Hz Player and collision simulation, including upward, downward, and same-height transitions. The analytic utility assumes an unobstructed arc; this second layer checks actual route geometry and discrete integration. The sweep also validates all 8,000 flowers for deterministic placement, safe hosts, clearance, non-overlap, and valid goal geometry. Collectible/progression tests cover exact-once collection and winning, locked goals, restart, the zero-item case, and a deterministic generated-level completion flow. Camera tests cover following, clamps, matrices, resize, reset, finite/deterministic calculations, and physics independence. Encounter validation checks 6,000 enemies and 4,000 hazards across the same 1,000 seeds, including safe edge surface and non-overlap. Every enemy receives 1,200 fixed patrol ticks (7.2 million enemy updates, plus identical replay checks); focused tests cover reversals, reset, deterministic movement, contact respawn, retained flowers/unlock, and frozen gameplay after winning. Presentation tests check periodic parallax math and HUD containment across wide, square, narrow, and short viewports. The audio suite exercises real gameplay transitions for accepted/rejected jumps, multiple/duplicate pickups, enemy/thorn damage, silent falls, one-shot winning, and restart clearing. Existing gameplay tests are unchanged. Configure with `-DBUILD_TESTING=OFF` to omit tests.
+## Audio & Licensing
+
+All visuals are **original procedural geometry**. The four external sound effects are **Kenney CC0** assets, played through miniaudio. Jump, pickup, damage, and win cues are driven by gameplay transitions; unavailable audio never prevents play. See [THIRD_PARTY_ASSETS.md](THIRD_PARTY_ASSETS.md) for provenance and software license choices.
+
+## Current Scope
+
+This is a focused playable prototype with no combat system, sprite artwork, or background music. **Windows is the verified runtime target**; Linux/macOS paths are implemented, but their builds and runtime behavior have not been verified. CMake reports existing upstream GLM compatibility deprecation warnings.

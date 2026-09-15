@@ -8,6 +8,7 @@
 #include "AudioSystem.hpp"
 
 #include <memory>
+#include <filesystem>
 
 struct GLFWwindow;
 
@@ -17,7 +18,7 @@ class Renderer;
 
 class Game final {
 public:
-    Game();
+    explicit Game(const std::filesystem::path& resourceRoot);
     ~Game();
     Game(const Game&) = delete;
     Game& operator=(const Game&) = delete;
