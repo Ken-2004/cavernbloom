@@ -85,7 +85,7 @@ flowchart TD
 | Hazard placements | 4,000 |
 | Patrol updates | 7.2 million, plus replay validation |
 
-Focused suites also cover collision boundaries, camera behavior, exact-once collection/winning, respawn/restart, presentation layout, and sound mapping. CTest opens no window and requires no audio device. [Windows CI](.github/workflows/ci.yml) configures, builds Release, and runs the tests on pushes and pull requests; its first hosted run is pending publication of these changes.
+Focused suites also cover collision boundaries, camera behavior, exact-once collection/winning, respawn/restart, presentation layout, and sound mapping. CTest opens no window and requires no audio device. [Windows CI](.github/workflows/ci.yml) configures, builds Release, and runs the tests on pushes and pull requests. The v0.1.0 release commit passed the hosted Windows workflow.
 
 ## Build
 
@@ -114,7 +114,7 @@ cmake --install build-release --config Release --prefix build-release/install
 cpack --config build-release/CPackConfig.cmake -C Release
 ```
 
-The ZIP is written to `build-release/package/CavernBloom-0.1.0-Windows-x64.zip`. Extract the entire folder and run `CavernBloom.exe`. It loads `shaders/` and `assets/audio/` beside itself and includes `THIRD_PARTY_ASSETS.md`; neither the source tree nor the original build directory is needed. The Windows build links the MSVC runtime statically. A working OpenGL 3.3 driver and Windows desktop are still required. No public release has been published.
+The ZIP is written to `build-release/package/CavernBloom-0.1.0-Windows-x64.zip`. Extract the entire folder and run `CavernBloom.exe`. It loads `shaders/` and `assets/audio/` beside itself and includes `THIRD_PARTY_ASSETS.md`; neither the source tree nor the original build directory is needed. The Windows build links the MSVC runtime statically. A working OpenGL 3.3 driver and Windows desktop are still required. The packaged Windows build is available from the [v0.1.0 GitHub Release](https://github.com/Ken-2004/cavernbloom/releases/tag/v0.1.0).
 
 ## Audio & Licensing
 
